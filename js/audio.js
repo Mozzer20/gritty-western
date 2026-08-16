@@ -58,6 +58,12 @@
           bufs: [],
           last: -1,
         },
+        cock: {
+          paths: ["assets/sfx/cock-1.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -292,6 +298,8 @@
     }
 
     cock() {
+      const rate = 0.98 + Math.random() * 0.04;
+      if (this._playBank("cock", rate, 0.9)) return;
       this.noise(0.025, 0.1, 900, 4000);
       this.tone(310, 0.05, "triangle", 0.06, 180);
       this.tone(190, 0.04, "square", 0.03);
