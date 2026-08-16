@@ -213,6 +213,28 @@
       this.noise(0.2, 0.16, 60, 420, 0.58);
     }
 
+    ugh(head) {
+      if (!this.ctx || this.muted) return;
+      const now = this.ctx.currentTime;
+      const pitch = (head ? 168 : 132) + Math.random() * 18;
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(pitch, now);
+      o.frequency.exponentialRampToValueAtTime(pitch * 0.62, now + 0.16);
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(420, now);
+      bp.frequency.linearRampToValueAtTime(280, now + 0.18);
+      bp.Q.value = 3.2;
+      const e = env(this.ctx, 0.012, 0.05, 0.35, 0.16, head ? 0.11 : 0.14);
+      o.connect(bp);
+      bp.connect(e);
+      e.connect(this._out(0.7));
+      o.start(now);
+      o.stop(now + 0.24);
+      this.noise(0.09, 0.08, 200, 900, 0.65);
+    }
+
     hurt() {
       this.noise(0.28, 0.34, 180, 1400);
       this.tone(128, 0.32, "sawtooth", 0.09, 42);

@@ -537,6 +537,7 @@
     e.hurt = 0.2;
     state.hitstop = head ? 0.12 : 0.1;
     state.shake = 16;
+    audio.ugh(head);
     audio.thud();
     rumblePat(head ? [6, 18, 8, 40, 50] : [8, 14, 10, 32, 36]);
     burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 22 : 16, 240);
