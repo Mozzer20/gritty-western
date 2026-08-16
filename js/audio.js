@@ -96,6 +96,17 @@
           bufs: [],
           last: -1,
         },
+        hurt: {
+          paths: [
+            "assets/sfx/hurt-1.mp3",
+            "assets/sfx/hurt-2.mp3",
+            "assets/sfx/hurt-3.mp3",
+            "assets/sfx/hurt-4.mp3",
+          ],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -413,6 +424,8 @@
     }
 
     hurt() {
+      const rate = 0.96 + Math.random() * 0.08;
+      if (this._playBank("hurt", rate, 0.95)) return;
       this.noise(0.28, 0.34, 180, 1400);
       this.tone(128, 0.32, "sawtooth", 0.09, 42);
     }
