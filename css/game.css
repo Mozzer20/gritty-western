@@ -416,9 +416,10 @@ canvas#view {
   opacity: 0;
 }
 
-#flash.bang { animation: bang 0.16s linear; }
+#flash.bang { animation: bang 0.11s linear; }
 
 @keyframes bang {
-  0% { opacity: 0.55; }
+  0% { opacity: 0.82; }
+  35% { opacity: 0.28; }
   100% { opacity: 0; }
 }

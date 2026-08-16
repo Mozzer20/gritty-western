@@ -23,8 +23,14 @@
     player: "assets/characters/player-idle.png",
     revolver: "assets/characters/revolver.png",
     outlaw: "assets/characters/outlaw.png",
+    outlawDraw: "assets/characters/outlaw-draw.png",
+    outlawDead: "assets/characters/outlaw-dead.png",
     marshal: "assets/characters/marshal.png",
+    marshalDraw: "assets/characters/marshal-draw.png",
+    marshalDead: "assets/characters/marshal-dead.png",
     sharp: "assets/characters/sharp.png",
+    sharpDraw: "assets/characters/sharp-draw.png",
+    sharpDead: "assets/characters/sharp-dead.png",
     pan: "assets/props/pan.png",
     barrel: "assets/props/barrel.png",
     crate: "assets/props/crate.png",
@@ -32,6 +38,18 @@
   };
 
   const images = {};
+
+  const GRADES = {
+    street: { shadow: "rgb(42,22,14)", shadowA: 0.16, high: "rgb(255,196,86)", highA: 0.13, sun: [0.72, 0.12] },
+    saloon: { shadow: "rgb(10,5,8)", shadowA: 0.34, high: "rgb(255,132,46)", highA: 0.17, sun: null },
+    canyon: { shadow: "rgb(22,16,36)", shadowA: 0.18, high: "rgb(255,158,64)", highA: 0.2, sun: [0.7, 0.1] },
+    depot: { shadow: "rgb(32,18,12)", shadowA: 0.2, high: "rgb(255,168,74)", highA: 0.15, sun: [0.78, 0.14] },
+    gallows: { shadow: "rgb(22,22,26)", shadowA: 0.1, high: "rgb(255,228,176)", highA: 0.22, sun: [0.5, 0.08] },
+  };
+
+  function depthScale(y) {
+    return 0.78 + Math.max(0, Math.min(1, y / VH)) * 0.4;
+  }
   const state = {
     mode: "title",
     level: 0,
@@ -49,6 +67,10 @@
     entities: [],
     bullet: null,
     particles: [],
+    casings: [],
+    smoke: [],
+    hats: [],
+    muzzleFlash: 0,
     motes: [],
     shake: 0,
     hitstop: 0,
@@ -195,6 +217,10 @@
     state.ghost = null;
     state.preview = null;
     state.particles = [];
+    state.casings = [];
+    state.smoke = [];
+    state.hats = [];
+    state.muzzleFlash = 0;
     resetCam();
     spawnMotes();
     $("chapter").textContent = L.name;
@@ -423,8 +449,53 @@
     rumble(18);
     flash();
     state.shake = 10;
+    state.muzzleFlash = 0.1;
     burst(state.muzzle.x, state.muzzle.y, "#f3d48a", 10, 220);
+    spawnCasing();
+    spawnSmoke(state.muzzle.x, state.muzzle.y - 36);
     $("hold-cue").style.opacity = "0";
+  }
+
+  function spawnCasing() {
+    const side = state.aim.x >= state.muzzle.x ? 1 : -1;
+    state.casings.push({
+      x: state.muzzle.x + side * 18,
+      y: state.muzzle.y - 48,
+      vx: side * (90 + Math.random() * 70),
+      vy: -240 - Math.random() * 90,
+      rot: Math.random() * Math.PI,
+      vr: side * (10 + Math.random() * 8),
+      age: 0,
+      life: 1.5,
+    });
+  }
+
+  function spawnSmoke(x, y) {
+    for (let i = 0; i < 5; i++) {
+      state.smoke.push({
+        x: x + (Math.random() - 0.5) * 16,
+        y: y + (Math.random() - 0.5) * 10,
+        vx: (Math.random() - 0.5) * 18,
+        vy: -12 - Math.random() * 18,
+        r: 10 + Math.random() * 14,
+        age: 0,
+        life: 0.7 + Math.random() * 0.5,
+      });
+    }
+  }
+
+  function spawnHat(e) {
+    const d = depthScale(e.y);
+    state.hats.push({
+      x: e.x + 10,
+      y: e.y - 150 * d,
+      vx: (Math.random() - 0.4) * 80,
+      vy: -160 - Math.random() * 60,
+      rot: 0,
+      vr: (Math.random() - 0.5) * 10,
+      age: 0,
+      life: 1.2,
+    });
   }
 
   function applyKill(hit, bounces, chainIndex) {
@@ -442,6 +513,7 @@
     if (e.hp <= 0) {
       e.dead = true;
       e.fall = 0.01;
+      spawnHat(e);
       state.sceneKills += 1;
       if (chainIndex > 0) state.sceneChains += 1;
       const style = styleName(bounces, head, chainIndex);
@@ -719,12 +791,55 @@
       if (e.dead && e.fall < 1) e.fall = Math.min(1, e.fall + dt * 1.8);
     }
 
-    for (const m of state.motes) {
-      m.y += m.v * wdt;
-      if (m.y > VH) {
-        m.y = -4;
-        m.x = Math.random() * VW;
+    const freeze = state.timeScale < 0.16;
+    if (!freeze) {
+      for (const m of state.motes) {
+        m.y += m.v * wdt;
+        if (m.y > VH) {
+          m.y = -4;
+          m.x = Math.random() * VW;
+        }
       }
+    }
+
+    if (state.muzzleFlash > 0) state.muzzleFlash -= dt;
+
+    for (let i = state.casings.length - 1; i >= 0; i--) {
+      const c = state.casings[i];
+      c.age += dt;
+      c.vy += 780 * dt;
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      c.rot += c.vr * dt;
+      if (c.y > 1248 && c.vy > 0) {
+        c.y = 1248;
+        c.vy *= -0.28;
+        c.vx *= 0.6;
+        c.vr *= 0.5;
+      }
+      if (c.age >= c.life) state.casings.splice(i, 1);
+    }
+    for (let i = state.smoke.length - 1; i >= 0; i--) {
+      const s = state.smoke[i];
+      s.age += freeze ? dt * 0.25 : dt;
+      s.x += s.vx * wdt;
+      s.y += s.vy * wdt;
+      s.r += 18 * dt;
+      if (s.age >= s.life) state.smoke.splice(i, 1);
+    }
+    for (let i = state.hats.length - 1; i >= 0; i--) {
+      const h = state.hats[i];
+      h.age += dt;
+      h.vy += 620 * dt;
+      h.x += h.vx * dt;
+      h.y += h.vy * dt;
+      h.rot += h.vr * dt;
+      if (h.y > 1240 && h.vy > 0) {
+        h.y = 1240;
+        h.vy *= -0.2;
+        h.vx *= 0.5;
+      }
+      if (h.age >= h.life) state.hats.splice(i, 1);
     }
 
     for (let i = state.particles.length - 1; i >= 0; i--) {
@@ -891,8 +1006,12 @@
     ctx.fillRect(-80, -80, VW + 160, VH + 160);
 
     const L = GW.LEVELS[state.level] || GW.LEVELS[0];
+    const farX = (state.cam.x - VW / 2) * 0.16;
+    const farY = (state.cam.y - VH / 2) * 0.12;
+    ctx.save();
+    ctx.translate(farX, farY);
     const bg = images[L.bg];
-    if (bg) ctx.drawImage(bg, 0, 0, VW, VH);
+    if (bg) ctx.drawImage(bg, -36, -36, VW + 72, VH + 72);
     else {
       const g = ctx.createLinearGradient(0, 0, 0, VH);
       g.addColorStop(0, "#6a3118");
@@ -901,11 +1020,8 @@
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, VW, VH);
     }
-
-    if (state.timeScale < 0.7) {
-      ctx.fillStyle = "rgba(12, 40, 48, 0.16)";
-      ctx.fillRect(0, 0, VW, VH);
-    }
+    ctx.restore();
+    drawSun(L.bg);
 
     for (const m of state.motes) {
       ctx.fillStyle = "rgba(232, 211, 170," + m.a + ")";
@@ -915,6 +1031,7 @@
     }
 
     const drawables = state.entities.slice().sort((a, b) => a.y - b.y);
+    for (const e of drawables) drawShadowFor(e);
     for (const e of drawables) {
       if (e.type === "enemy") drawEnemy(e);
       else drawProp(e);
@@ -944,14 +1061,172 @@
       }
     }
 
+    drawCasings();
+    drawHats();
+    drawSmoke();
     drawBullet();
     drawParticles();
+    if (state.muzzleFlash > 0) drawMuzzleFlash();
     if (!state.bullet && state.camHold <= 0) drawGun();
     drawEnemyMeters();
+    drawNearGrit();
+    drawGrade(L.bg);
 
     ctx.strokeStyle = "rgba(232, 195, 106, 0.12)";
     ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, VW - 20, VH - 20);
+  }
+
+  function drawShadow(x, y, rx, ry, a) {
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0," + a + ")";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawShadowFor(e) {
+    if (e.type === "fence") return;
+    const d = depthScale(e.y);
+    if (e.type === "enemy") {
+      if (e.dead) drawShadow(e.x, e.y + 8, 48 * d, 12 * d, 0.28);
+      else drawShadow(e.x, e.y + 4, 28 * d, 9 * d, e.hidden ? 0.16 : 0.32);
+    } else if (e.type === "pan") {
+      drawShadow(e.x, e.y + 36 * d, 22 * d, 7 * d, 0.2);
+    } else if (e.type === "barrel") {
+      drawShadow(e.x, e.y + 52 * d, 36 * d, 12 * d, 0.3);
+    } else if (e.type === "crate") {
+      drawShadow(e.x, e.y + 48 * d, 40 * d, 13 * d, 0.3);
+    } else if (e.type === "sign") {
+      drawShadow(e.x, e.y + (e.h || 200) * 0.35, 16 * d, 6 * d, 0.18);
+    }
+  }
+
+  function poseKey(e) {
+    const s = e.species || "outlaw";
+    if (e.dead) return s + "Dead";
+    if (e.drawT / (e.drawMax || 1) > 0.55) return s + "Draw";
+    return s;
+  }
+
+  function drawSun(bg) {
+    const g = GRADES[bg];
+    if (!g || !g.sun) return;
+    const [sx, sy] = g.sun;
+    const x = VW * sx;
+    const y = VH * sy;
+    const rad = ctx.createRadialGradient(x, y, 8, x, y, 280);
+    rad.addColorStop(0, "rgba(255,230,160,0.55)");
+    rad.addColorStop(0.35, "rgba(255,170,70,0.12)");
+    rad.addColorStop(1, "rgba(255,160,60,0)");
+    ctx.fillStyle = rad;
+    ctx.fillRect(x - 280, y - 280, 560, 560);
+  }
+
+  function drawNearGrit() {
+    const nx = (VW / 2 - state.cam.x) * 0.14;
+    const ny = (VH / 2 - state.cam.y) * 0.1;
+    ctx.save();
+    ctx.translate(nx, ny);
+    const g = ctx.createLinearGradient(0, VH * 0.78, 0, VH);
+    g.addColorStop(0, "rgba(40,22,10,0)");
+    g.addColorStop(1, "rgba(20,10,6,0.28)");
+    ctx.fillStyle = g;
+    ctx.fillRect(-40, VH * 0.78, VW + 80, VH * 0.28);
+    ctx.restore();
+  }
+
+  function drawGrade(bg) {
+    const g = GRADES[bg] || GRADES.street;
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.globalAlpha = g.shadowA;
+    ctx.fillStyle = g.shadow;
+    ctx.fillRect(-80, -80, VW + 160, VH + 160);
+    ctx.globalCompositeOperation = "overlay";
+    ctx.globalAlpha = g.highA;
+    ctx.fillStyle = g.high;
+    ctx.fillRect(-80, -80, VW + 160, VH + 160);
+    ctx.restore();
+
+    if (state.timeScale < 0.55) {
+      const beat = 0.16 + 0.1 * Math.sin(performance.now() / 360);
+      const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.18, VW / 2, VH / 2, VH * 0.72);
+      vg.addColorStop(0, "rgba(12, 28, 34, 0)");
+      vg.addColorStop(1, "rgba(6, 14, 18," + (0.38 + beat) + ")");
+      ctx.fillStyle = vg;
+      ctx.fillRect(-80, -80, VW + 160, VH + 160);
+      ctx.fillStyle = "rgba(180, 90, 30, 0.07)";
+      ctx.fillRect(-80, -80, VW + 160, VH + 160);
+    }
+  }
+
+  function drawCasings() {
+    for (const c of state.casings) {
+      const a = 1 - c.age / c.life;
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.rot);
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.fillStyle = "#c4a050";
+      ctx.fillRect(-3, -1.4, 7, 2.8);
+      ctx.fillStyle = "#7a4a18";
+      ctx.fillRect(-3, -1.4, 2, 2.8);
+      ctx.restore();
+    }
+  }
+
+  function drawHats() {
+    for (const h of state.hats) {
+      ctx.save();
+      ctx.translate(h.x, h.y);
+      ctx.rotate(h.rot);
+      ctx.globalAlpha = Math.max(0, 1 - h.age / h.life);
+      ctx.fillStyle = "#1a120c";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 16, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-6, -6, 12, 6);
+      ctx.restore();
+    }
+  }
+
+  function drawSmoke() {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const s of state.smoke) {
+      const t = s.age / s.life;
+      ctx.globalAlpha = (1 - t) * 0.22;
+      ctx.fillStyle = "#d8c8a0";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawMuzzleFlash() {
+    const t = state.muzzleFlash / 0.1;
+    const x = state.muzzle.x;
+    const y = state.muzzle.y - 28;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = t;
+    ctx.fillStyle = "#fff6c8";
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffb24a";
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + t;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * 34, y + Math.sin(a) * 18);
+      ctx.lineTo(x + Math.cos(a + 0.3) * 16, y + Math.sin(a + 0.3) * 10);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   function drawMetalGlow() {
@@ -975,22 +1250,28 @@
   }
 
   function drawEnemy(e) {
-    const sc = 0.92 * (e.s || 1);
-    const h = 240 * sc * (e.hidden ? 0.86 : 1);
+    const d = depthScale(e.y) * (e.s || 1);
+    const key = poseKey(e);
+    const img = images[key] || images[e.species] || images.outlaw;
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.globalAlpha = e.hidden ? 0.45 : 1;
-    if (e.dead) {
-      ctx.rotate(e.fall * 1.3);
-      ctx.globalAlpha = 1 - e.fall * 0.35;
-    }
     if (e.hurt > 0) ctx.translate((Math.random() - 0.5) * 6, 0);
-    const img = images[e.species] || images.outlaw;
-    if (!drawSprite(img, 0, 0, h, 0, e.x > 400)) drawFallbackEnemy(Object.assign({}, e, { x: 0, y: 0 }));
+    if (e.dead && images[e.species + "Dead"]) {
+      const w = 190 * d;
+      const h = (img.height / img.width) * w;
+      ctx.globalAlpha = 1 - Math.min(0.25, e.fall * 0.2);
+      ctx.drawImage(img, -w / 2, -h * 0.72, w, h);
+    } else {
+      const h = 236 * d * (e.hidden ? 0.9 : 1);
+      const flip = e.x > 400;
+      if (!drawSprite(img, 0, 0, h, e.dead ? e.fall * 1.2 : 0, flip)) {
+        drawFallbackEnemy(Object.assign({}, e, { x: 0, y: 0 }));
+      }
+    }
     if (e.flash > 0) {
       ctx.globalCompositeOperation = "lighter";
       ctx.fillStyle = "rgba(255, 220, 160, 0.25)";
-      ctx.fillRect(-60, -h, 120, h);
+      ctx.fillRect(-70, -240 * d, 140, 240 * d);
     }
     ctx.restore();
   }
@@ -1012,7 +1293,8 @@
     }
     const map = { pan: images.pan, barrel: images.barrel, crate: images.crate, sign: images.sign };
     const img = map[e.type];
-    const h = e.type === "pan" ? 92 * e.s : e.type === "sign" ? (e.h || 200) * 0.72 : 130 * e.s;
+    const d = depthScale(e.y);
+    const h = (e.type === "pan" ? 92 * e.s : e.type === "sign" ? (e.h || 200) * 0.72 : 130 * e.s) * d;
     ctx.save();
     ctx.translate(e.x, e.y + (e.type === "pan" ? 0 : h * 0.42));
     ctx.rotate(e.spin || 0);
@@ -1124,21 +1406,35 @@
   function drawBullet() {
     if (!state.bullet) return;
     const p = pointAt(state.bullet.pts, state.bullet.dist);
-    ctx.strokeStyle = "rgba(255, 230, 160, 0.55)";
-    ctx.lineWidth = 3;
+    const a = pointAt(state.bullet.pts, Math.max(0, state.bullet.dist - 86));
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(255, 210, 120, 0.45)";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    const a = pointAt(state.bullet.pts, Math.max(0, state.bullet.dist - 70));
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 246, 200, 0.85)";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 70, 50, 0.55)";
+    ctx.beginPath();
+    ctx.arc(p.x + 1.7, p.y, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(60, 210, 255, 0.45)";
+    ctx.beginPath();
+    ctx.arc(p.x - 1.7, p.y, 4.2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "#fff6d0";
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 3.6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(255, 200, 80, 0.35)";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.restore();
   }
 
   function drawParticles() {
@@ -1155,10 +1451,11 @@
   function drawGun() {
     const ang = Math.atan2(state.aim.y - state.muzzle.y, state.aim.x - state.muzzle.x);
     const tilt = ang + Math.PI / 2;
+    const cocked = state.aiming ? 1 : 0;
     const img = images.revolver;
     ctx.save();
-    ctx.translate(state.muzzle.x, VH - 8);
-    ctx.rotate(tilt * 0.55);
+    ctx.translate(state.muzzle.x, VH - 8 + cocked * 10);
+    ctx.rotate(tilt * 0.55 - cocked * 0.09);
     if (img) {
       const h = 260;
       const w = (img.width / img.height) * h;
