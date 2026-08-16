@@ -73,6 +73,7 @@
     smoke: [],
     hats: [],
     muzzleFlash: 0,
+    recoil: 0,
     motes: [],
     shake: 0,
     hitstop: 0,
@@ -130,6 +131,12 @@
     } catch (e) {}
   }
 
+  function rumblePat(arr) {
+    try {
+      if (navigator.vibrate) navigator.vibrate(arr);
+    } catch (e) {}
+  }
+
   function loadImages() {
     return Promise.all(
       Object.keys(IMG).map(
@@ -153,13 +160,14 @@
 
   function spawnMotes() {
     state.motes = [];
-    for (let i = 0; i < 48; i++) {
+    for (let i = 0; i < 64; i++) {
       state.motes.push({
         x: Math.random() * VW,
         y: Math.random() * VH,
-        r: 0.6 + Math.random() * 1.6,
-        v: 6 + Math.random() * 16,
-        a: 0.08 + Math.random() * 0.18,
+        r: 0.5 + Math.random() * 1.8,
+        v: 5 + Math.random() * 18,
+        drift: (Math.random() - 0.5) * 8,
+        a: 0.06 + Math.random() * 0.2,
       });
     }
   }
@@ -223,6 +231,7 @@
     state.smoke = [];
     state.hats = [];
     state.muzzleFlash = 0;
+    state.recoil = 0;
     resetCam();
     spawnMotes();
     $("chapter").textContent = L.name;
@@ -448,13 +457,16 @@
     state.aiming = false;
     state.ghost = null;
     audio.gunshot();
-    rumble(18);
+    audio.slam();
+    rumblePat([12, 30, 28]);
     flash();
-    state.shake = 10;
-    state.muzzleFlash = 0.1;
-    burst(state.muzzle.x, state.muzzle.y, "#f3d48a", 10, 220);
+    state.shake = 14;
+    state.muzzleFlash = 0.12;
+    state.recoil = 1;
+    const tip = barrelTip();
+    burst(tip.x, tip.y, "#f3d48a", 14, 260);
     spawnCasing();
-    spawnSmoke(state.muzzle.x, state.muzzle.y - 36);
+    spawnSmoke(tip.x, tip.y);
     $("hold-cue").style.opacity = "0";
   }
 
@@ -507,11 +519,11 @@
     e.hp -= head ? 2 : 1;
     e.flash = 0.12;
     e.hurt = 0.2;
-    state.hitstop = 0.08;
-    state.shake = 12;
+    state.hitstop = head ? 0.12 : 0.1;
+    state.shake = 16;
     audio.thud();
-    rumble(head ? 32 : 24);
-    burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 18 : 12, 200);
+    rumblePat(head ? [8, 20, 40] : [10, 16, 28]);
+    burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 22 : 16, 240);
     if (e.hp <= 0) {
       e.dead = true;
       e.fall = 0.01;
@@ -754,7 +766,7 @@
       ty = state.camFocus.y - 90;
       tz = 1.42;
     }
-    const k = Math.min(1, dt * (state.bullet ? 7 : 5));
+    const k = Math.min(1, dt * (state.bullet ? 6 : 4.2));
     state.cam.x += (tx - state.cam.x) * k;
     state.cam.y += (ty - state.cam.y) * k;
     state.cam.z += (tz - state.cam.z) * k;
@@ -770,8 +782,8 @@
 
     let targetScale = 1;
     if (state.mode === "fight") {
-      if (state.aiming) targetScale = 0.068;
-      else if (state.bullet) targetScale = 0.16;
+      if (state.aiming) targetScale = 0.055;
+      else if (state.bullet) targetScale = 0.14;
     }
     state.timeScale += (targetScale - state.timeScale) * Math.min(1, dt * 7);
     $("bt-veil").classList.toggle("on", state.timeScale < 0.55);
@@ -813,6 +825,7 @@
     if (!freeze) {
       for (const m of state.motes) {
         m.y += m.v * wdt;
+        m.x += (m.drift || 0) * wdt;
         if (m.y > VH) {
           m.y = -4;
           m.x = Math.random() * VW;
@@ -821,6 +834,7 @@
     }
 
     if (state.muzzleFlash > 0) state.muzzleFlash -= dt;
+    if (state.recoil > 0) state.recoil = Math.max(0, state.recoil - dt * 5.5);
 
     for (let i = state.casings.length - 1; i >= 0; i--) {
       const c = state.casings[i];
@@ -897,18 +911,18 @@
     if (state.bullet) {
       const b = state.bullet;
       const prev = b.dist;
-      b.dist += 900 * dt;
+      b.dist += 820 * dt;
       const now = pointAt(b.pts, b.dist);
       for (const ev of b.events) {
         if (ev.dist > prev && ev.dist <= b.dist + 0.01) {
           if (ev.kind === "bounce") {
             audio.ping(ev.bounce);
-            rumble(12);
-            burst(ev.hit.x, ev.hit.y, "#f4e0a8", 14, 260);
-            state.shake = 6;
-            state.cam.roll += ev.hit.nx > 0 ? 0.05 : -0.05;
+            rumblePat([6, 18, 14]);
+            burst(ev.hit.x, ev.hit.y, "#f4e0a8", 20, 300);
+            state.shake = 8;
+            state.cam.roll += ev.hit.nx > 0 ? 0.06 : -0.06;
             if (ev.hit.body && ev.hit.body.ent && ev.hit.body.ent.type === "pan") {
-              ev.hit.body.ent.spinV += 10;
+              ev.hit.body.ent.spinV += 12;
             }
           } else if (ev.kind === "kill") {
             const died = applyKill(ev.hit, b.bounces, b.kills);
@@ -997,6 +1011,8 @@
     if (!img) return false;
     const w = (img.width / img.height) * h;
     ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.translate(x, y);
     if (flip) ctx.scale(-1, 1);
     if (ang) ctx.rotate(ang);
@@ -1026,6 +1042,8 @@
   function applyWorldXform() {
     const v = state.view;
     const c = state.cam;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
     ctx.translate(VW / 2, VH / 2);
     ctx.rotate(c.roll);
@@ -1092,6 +1110,10 @@
 
   function drawShadow(x, y, rx, ry, a) {
     ctx.save();
+    ctx.fillStyle = "rgba(0,0,0," + a * 0.45 + ")";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, rx * 1.45, ry * 1.55, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "rgba(0,0,0," + a + ")";
     ctx.beginPath();
     ctx.ellipse(x, y + 4, rx, ry, 0, 0, Math.PI * 2);
@@ -1268,7 +1290,8 @@
     const key = poseKey(e);
     const img = images[key] || images[e.species] || images.outlaw;
     ctx.save();
-    ctx.translate(e.x, e.y);
+    const sway = !e.dead && !state.aiming && !state.bullet ? Math.sin(state.fightT * 1.6 + e.x * 0.02) * 1.6 : 0;
+    ctx.translate(e.x + sway, e.y);
     if (e.hurt > 0) ctx.translate((Math.random() - 0.5) * 6, 0);
     if (e.dead && images[e.species + "Dead"]) {
       const w = 190 * d;
@@ -1295,21 +1318,40 @@
       const x0 = Math.min(e.x0, e.x1);
       const x1 = Math.max(e.x0, e.x1);
       const img = images.crate;
-      const h = 70;
-      for (let x = x0; x < x1; x += 58) {
-        if (img) ctx.drawImage(img, x, e.y - h * 0.55, Math.min(62, x1 - x), h);
+      const h = 74;
+      drawShadow((x0 + x1) * 0.5, e.y + 18, (x1 - x0) * 0.48, 14, 0.28);
+      ctx.save();
+      ctx.fillStyle = "rgba(28, 16, 8, 0.55)";
+      ctx.fillRect(x0 - 6, e.y - 18, x1 - x0 + 12, 36);
+      for (let x = x0; x < x1; x += 50) {
+        if (img) ctx.drawImage(img, x - 4, e.y - h * 0.58, Math.min(68, x1 - x + 8), h);
         else {
           ctx.fillStyle = "#5a3a1c";
           ctx.fillRect(x, e.y - 28, 54, 56);
         }
       }
+      ctx.restore();
       return;
     }
     const map = { pan: images.pan, barrel: images.barrel, crate: images.crate, sign: images.sign };
     const img = map[e.type];
     const d = depthScale(e.y);
     const h = (e.type === "pan" ? 92 * e.s : e.type === "sign" ? (e.h || 200) * 0.72 : 130 * e.s) * d;
+    if (e.type === "pan") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(40, 32, 24, 0.75)";
+      ctx.lineWidth = 2;
+      const hookY = e.anchorY != null ? e.anchorY - 70 : e.y - 70;
+      const hookX = e.anchorX != null ? e.anchorX : e.x;
+      ctx.beginPath();
+      ctx.moveTo(hookX, hookY);
+      ctx.quadraticCurveTo((hookX + e.x) * 0.5, hookY + 24, e.x, e.y - h * 0.42);
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.translate(e.x, e.y);
     ctx.rotate(e.spin || 0);
     if (e.hurt > 0) ctx.translate((Math.random() - 0.5) * 3, 0);
@@ -1520,10 +1562,13 @@
     const ang = Math.atan2(state.aim.y - state.muzzle.y, state.aim.x - state.muzzle.x);
     const tilt = ang + Math.PI / 2;
     const cocked = state.aiming ? 1 : 0;
+    const rec = state.recoil || 0;
     const img = images.revolver;
     ctx.save();
-    ctx.translate(state.muzzle.x, VH - 8 + cocked * 10);
-    ctx.rotate(tilt * 0.55 - cocked * 0.09);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.translate(360, VH - 8 + cocked * 10 + rec * 18);
+    ctx.rotate(tilt * 0.55 - cocked * 0.09 + rec * 0.12);
     if (img) {
       const h = 260;
       const w = (img.width / img.height) * h;
@@ -1648,11 +1693,13 @@
     state.cam.z = 1;
     state.cam.roll = 0;
     state.aiming = true;
+    audio.unlock();
+    audio.cock();
+    rumble(8);
     state.aim.x = clamp(w.x, 20, 700);
     state.aim.y = clamp(w.y, 20, 1120);
     $("hold-cue").style.opacity = "0";
     $("hint").classList.remove("show");
-    rumble(6);
   }
 
   function onMove(ev) {

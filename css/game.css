@@ -113,11 +113,12 @@ canvas#sight {
   font-size: 18px;
   color: var(--paper);
   letter-spacing: 0.06em;
+  text-shadow: 0 1px 6px #000;
 }
 
 .stat.right { text-align: right; }
 
-#hearts { color: var(--blood); letter-spacing: 0.18em; font-size: 16px; }
+#hearts { color: var(--blood); letter-spacing: 0.18em; font-size: 17px; text-shadow: 0 1px 4px #000; }
 
 #chapter {
   position: absolute;
@@ -134,14 +135,14 @@ canvas#sight {
 
 #hint {
   position: absolute;
-  left: 18px;
-  right: 18px;
+  left: 16px;
+  right: 16px;
   bottom: calc(126px + var(--safe-bot));
   text-align: center;
-  font-size: 13px;
-  letter-spacing: 0.08em;
+  font-size: 14px;
+  letter-spacing: 0.04em;
   color: var(--paper);
-  text-shadow: 0 2px 10px #000;
+  text-shadow: 0 2px 12px #000, 0 0 18px #000;
   opacity: 0;
   transition: opacity 0.4s ease;
 }
@@ -272,7 +273,7 @@ canvas#sight {
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: rgba(5, 3, 2, 0.72);
+  background: rgba(5, 3, 2, 0.78);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,6 +289,10 @@ canvas#sight {
   -webkit-overflow-scrolling: touch;
   text-align: center;
   color: var(--paper);
+  padding: 8px 4px 4px;
+  border: 1px solid rgba(232, 195, 106, 0.18);
+  background: linear-gradient(180deg, rgba(28, 14, 8, 0.35), rgba(8, 4, 2, 0.15));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-height: 740px) {
@@ -336,14 +341,15 @@ canvas#sight {
   display: block;
   width: 100%;
   margin: 8px 0;
-  padding: 14px 16px;
+  padding: 15px 16px;
   border: 1px solid var(--gold);
-  background: linear-gradient(#6a1a14, #3e0e0c);
+  background: linear-gradient(#7a2218, #3a100c);
   color: var(--gold);
   font-family: Cinzel, serif;
   font-weight: 700;
   letter-spacing: 0.28em;
   font-size: 13px;
+  box-shadow: 0 4px 0 #240808, 0 8px 16px rgba(0, 0, 0, 0.35);
 }
 
 .btn.ghost {
@@ -380,7 +386,7 @@ canvas#sight {
   max-width: 170px;
   margin: 0 auto 18px;
   display: block;
-  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.65));
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.65)) saturate(1.08) contrast(1.06);
 }
 
 .film {

@@ -1,6 +1,5 @@
 /**
  * The Gritty Western — procedural score & Foley.
- * No samples. Dust, brass, and a whistle that is not anybody else's theme.
  */
 (function (root) {
   const GW = (root.GW = root.GW || {});
@@ -33,11 +32,11 @@
       if (!AC) return;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.46;
+      this.master.gain.value = 0.5;
       const comp = this.ctx.createDynamicsCompressor();
-      comp.threshold.value = -16;
-      comp.knee.value = 10;
-      comp.ratio.value = 3.5;
+      comp.threshold.value = -14;
+      comp.knee.value = 8;
+      comp.ratio.value = 3.2;
       this.master.connect(comp);
       comp.connect(this.ctx.destination);
       this._startWind();
@@ -45,34 +44,42 @@
 
     setMuted(m) {
       this.muted = m;
-      if (this.master) this.master.gain.value = m ? 0 : 0.46;
+      if (this.master) this.master.gain.value = m ? 0 : 0.5;
     }
 
     setTension(on) {
-      if (!this._wind) return;
-      this._wind.g.gain.setTargetAtTime(on ? 0.012 : 0.035, this.ctx.currentTime, 0.08);
-      this._wind.f.frequency.setTargetAtTime(on ? 180 : 420, this.ctx.currentTime, 0.1);
+      if (!this._wind || !this.ctx) return;
+      this._wind.g.gain.setTargetAtTime(on ? 0.01 : 0.04, this.ctx.currentTime, 0.1);
+      this._wind.f.frequency.setTargetAtTime(on ? 140 : 380, this.ctx.currentTime, 0.12);
     }
 
     heartbeat() {
-      this.tone(54, 0.11, "sine", 0.07, 32);
+      this.tone(48, 0.09, "sine", 0.08, 28);
+      const later = this;
+      setTimeout(function () {
+        later.tone(40, 0.12, "sine", 0.05, 24);
+      }, 160);
     }
 
     _startWind() {
       if (!this.ctx || this._wind) return;
-      const len = this.ctx.sampleRate * 3;
+      const len = this.ctx.sampleRate * 4;
       const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
+      let acc = 0;
+      for (let i = 0; i < len; i++) {
+        acc = acc * 0.97 + (Math.random() * 2 - 1) * 0.03;
+        d[i] = acc + (Math.random() * 2 - 1) * 0.08;
+      }
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.loop = true;
       const f = this.ctx.createBiquadFilter();
       f.type = "bandpass";
-      f.frequency.value = 420;
-      f.Q.value = 0.7;
+      f.frequency.value = 380;
+      f.Q.value = 0.55;
       const g = this.ctx.createGain();
-      g.gain.value = 0.035;
+      g.gain.value = 0.04;
       src.connect(f);
       f.connect(g);
       g.connect(this.master);
@@ -84,8 +91,8 @@
       if (!this.ctx || this.muted) return;
       const n = Math.max(32, this.ctx.sampleRate * dur);
       const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       let node = src;
@@ -103,7 +110,7 @@
         node.connect(f);
         node = f;
       }
-      const e = env(this.ctx, 0.002, 0.03, 0.22, dur, peak);
+      const e = env(this.ctx, 0.002, 0.025, 0.2, dur, peak);
       node.connect(e);
       e.connect(this.master);
       src.start();
@@ -115,7 +122,7 @@
       o.type = type || "sine";
       o.frequency.setValueAtTime(freq, this.ctx.currentTime);
       if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), this.ctx.currentTime + dur);
-      const e = env(this.ctx, 0.01, dur * 0.25, 0.3, dur * 0.7, peak || 0.12);
+      const e = env(this.ctx, 0.008, dur * 0.22, 0.28, dur * 0.72, peak || 0.12);
       o.connect(e);
       e.connect(this.master);
       o.start();
@@ -123,38 +130,60 @@
     }
 
     gunshot() {
-      this.noise(0.22, 0.62, 140, 2400);
-      this.noise(0.09, 0.4, 1600, 9000);
-      this.tone(78, 0.28, "sine", 0.32, 34);
-      this.tone(196, 0.12, "triangle", 0.1, 70);
+      this.noise(0.28, 0.7, 90, 1800);
+      this.noise(0.08, 0.45, 1800, 10000);
+      this.noise(0.05, 0.22, 4000, 14000);
+      this.tone(62, 0.32, "sine", 0.38, 28);
+      this.tone(148, 0.14, "triangle", 0.12, 55);
+      this.tone(320, 0.05, "square", 0.04, 80);
     }
 
     ping(bounce) {
-      const f = 1680 + bounce * 220;
-      this.tone(f, 0.16, "sine", 0.18, f * 0.55);
-      this.tone(f * 2.01, 0.07, "triangle", 0.05, f);
-      this.noise(0.04, 0.08, 3000, 9000);
+      const f = 1540 + bounce * 260;
+      this.tone(f, 0.2, "sine", 0.2, f * 0.48);
+      this.tone(f * 2.03, 0.08, "triangle", 0.06, f * 0.9);
+      this.noise(0.045, 0.1, 2800, 11000);
+    }
+
+    cock() {
+      this.noise(0.025, 0.1, 900, 4000);
+      this.tone(310, 0.05, "triangle", 0.06, 180);
+      this.tone(190, 0.04, "square", 0.03);
+    }
+
+    slam() {
+      this.noise(0.06, 0.12, 200, 900);
+      this.tone(90, 0.08, "sine", 0.1, 40);
     }
 
     click() {
-      this.noise(0.03, 0.12, 1200, 5000);
-      this.tone(420, 0.04, "square", 0.04);
+      this.noise(0.028, 0.13, 1400, 6000);
+      this.tone(480, 0.035, "square", 0.045);
     }
 
     reload() {
       this.click();
-      setTimeout(() => this.tone(220, 0.08, "triangle", 0.07), 90);
-      setTimeout(() => this.click(), 180);
+      const later = this;
+      setTimeout(function () {
+        later.tone(210, 0.07, "triangle", 0.07);
+      }, 80);
+      setTimeout(function () {
+        later.click();
+      }, 170);
+      setTimeout(function () {
+        later.tone(260, 0.05, "square", 0.04);
+      }, 260);
     }
 
     thud() {
-      this.tone(70, 0.28, "sine", 0.22, 30);
-      this.noise(0.16, 0.16, 80, 500);
+      this.tone(58, 0.34, "sine", 0.28, 24);
+      this.tone(92, 0.18, "triangle", 0.08, 40);
+      this.noise(0.2, 0.2, 60, 420);
     }
 
     hurt() {
-      this.noise(0.25, 0.3, 200, 1200);
-      this.tone(140, 0.3, "sawtooth", 0.08, 50);
+      this.noise(0.28, 0.34, 180, 1400);
+      this.tone(128, 0.32, "sawtooth", 0.09, 42);
     }
 
     whistle() {
@@ -164,34 +193,44 @@
       o.type = "sine";
       o2.type = "sine";
       const now = this.ctx.currentTime;
-      o.frequency.setValueAtTime(784, now);
-      o.frequency.linearRampToValueAtTime(698, now + 0.45);
-      o.frequency.linearRampToValueAtTime(880, now + 0.9);
-      o2.frequency.setValueAtTime(788, now);
-      const e = env(this.ctx, 0.08, 0.2, 0.5, 0.7, 0.07);
+      o.frequency.setValueAtTime(740, now);
+      o.frequency.linearRampToValueAtTime(660, now + 0.38);
+      o.frequency.linearRampToValueAtTime(880, now + 0.72);
+      o.frequency.linearRampToValueAtTime(784, now + 1.15);
+      o2.frequency.setValueAtTime(746, now);
+      const e = env(this.ctx, 0.1, 0.22, 0.45, 0.85, 0.085);
       o.connect(e);
       o2.connect(e);
       e.connect(this.master);
       o.start(now);
       o2.start(now);
-      o.stop(now + 1.15);
-      o2.stop(now + 1.15);
+      o.stop(now + 1.35);
+      o2.stop(now + 1.35);
     }
 
     sting(win) {
       if (win) {
-        this.tone(294, 0.18, "triangle", 0.1);
-        setTimeout(() => this.tone(370, 0.18, "triangle", 0.1), 120);
-        setTimeout(() => this.tone(440, 0.4, "triangle", 0.12), 240);
+        this.tone(262, 0.16, "triangle", 0.1);
+        const later = this;
+        setTimeout(function () {
+          later.tone(330, 0.16, "triangle", 0.1);
+        }, 110);
+        setTimeout(function () {
+          later.tone(392, 0.42, "triangle", 0.13);
+        }, 220);
+        setTimeout(function () {
+          later.whistle();
+        }, 280);
       } else {
-        this.tone(196, 0.4, "sine", 0.12, 90);
+        this.tone(174, 0.45, "sine", 0.14, 70);
+        this.noise(0.2, 0.12, 120, 400);
       }
     }
 
     tickTheme(dt, onTitle) {
       if (!this.ctx || this.muted || !onTitle) return;
       this._theme += dt;
-      if (this._theme > 6.4) {
+      if (this._theme > 7.2) {
         this._theme = 0;
         this.whistle();
       }
