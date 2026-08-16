@@ -216,23 +216,30 @@
     ugh(head) {
       if (!this.ctx || this.muted) return;
       const now = this.ctx.currentTime;
-      const pitch = (head ? 168 : 132) + Math.random() * 18;
+      const pitch = (head ? 155 : 118) + Math.random() * 14;
       const o = this.ctx.createOscillator();
-      o.type = "sawtooth";
+      o.type = "triangle";
       o.frequency.setValueAtTime(pitch, now);
-      o.frequency.exponentialRampToValueAtTime(pitch * 0.62, now + 0.16);
+      o.frequency.exponentialRampToValueAtTime(Math.max(70, pitch * 0.58), now + 0.22);
+      const o2 = this.ctx.createOscillator();
+      o2.type = "sawtooth";
+      o2.frequency.setValueAtTime(pitch * 2.1, now);
+      o2.frequency.exponentialRampToValueAtTime(pitch * 1.15, now + 0.2);
       const bp = this.ctx.createBiquadFilter();
       bp.type = "bandpass";
-      bp.frequency.setValueAtTime(420, now);
-      bp.frequency.linearRampToValueAtTime(280, now + 0.18);
-      bp.Q.value = 3.2;
-      const e = env(this.ctx, 0.012, 0.05, 0.35, 0.16, head ? 0.11 : 0.14);
+      bp.frequency.setValueAtTime(520, now);
+      bp.frequency.linearRampToValueAtTime(300, now + 0.22);
+      bp.Q.value = 1.6;
+      const e = env(this.ctx, 0.008, 0.06, 0.45, 0.2, head ? 0.28 : 0.34);
       o.connect(bp);
+      o2.connect(bp);
       bp.connect(e);
-      e.connect(this._out(0.7));
+      e.connect(this._out(1));
       o.start(now);
-      o.stop(now + 0.24);
-      this.noise(0.09, 0.08, 200, 900, 0.65);
+      o2.start(now);
+      o.stop(now + 0.28);
+      o2.stop(now + 0.26);
+      this.noise(0.11, 0.16, 180, 1100, 0.9);
     }
 
     hurt() {

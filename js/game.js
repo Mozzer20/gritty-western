@@ -538,7 +538,9 @@
     state.hitstop = head ? 0.12 : 0.1;
     state.shake = 16;
     audio.ugh(head);
-    audio.thud();
+    setTimeout(function () {
+      audio.thud();
+    }, 90);
     rumblePat(head ? [6, 18, 8, 40, 50] : [8, 14, 10, 32, 36]);
     burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 22 : 16, 240);
     if (e.hp <= 0) {
@@ -661,6 +663,7 @@
     $("overlay-title").hidden = true;
     $("overlay-end").hidden = true;
     state.mode = "brief";
+    showHomeBtn(true);
   }
 
   function startFight() {
@@ -669,11 +672,36 @@
     state.mode = "fight";
     stamp("AIM");
     audio.whistle();
+    showHomeBtn(true);
   }
 
   function continueLevel() {
     if (state.unlocked >= GW.LEVELS.length) return 0;
     return Math.min(state.unlocked, GW.LEVELS.length - 1);
+  }
+
+  function showHomeBtn(on) {
+    const b = $("btn-home");
+    if (b) b.hidden = !on;
+  }
+
+  function goHome() {
+    state.mode = "title";
+    state.aiming = false;
+    state.bullet = null;
+    state.pendingStamp = 0;
+    state.lockId = null;
+    resetCam();
+    audio.stopHeart();
+    $("overlay-brief").hidden = true;
+    $("overlay-end").hidden = true;
+    $("overlay-how").hidden = true;
+    $("overlay-title").hidden = false;
+    $("chapter").textContent = "";
+    $("hint").classList.remove("show");
+    $("hold-cue").style.opacity = "0";
+    showHomeBtn(false);
+    paintTitle();
   }
 
   function paintTitle() {
@@ -1826,6 +1854,10 @@
       audio.unlock();
       $("overlay-how").hidden = false;
     }
+    $("btn-home").addEventListener("click", () => {
+      audio.unlock();
+      goHome();
+    });
     $("btn-how").addEventListener("click", openHow);
     $("btn-how2").addEventListener("click", openHow);
     $("btn-how-close").addEventListener("click", () => {

@@ -250,7 +250,7 @@ canvas#sight {
   flex-direction: column;
   gap: 8px;
   pointer-events: auto;
-  z-index: 6;
+  z-index: 12;
 }
 
 #dock button,
