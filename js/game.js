@@ -1310,29 +1310,21 @@
     ctx.restore();
   }
 
-  function clipPreview(pts) {
-    const mode = previewMode();
-    if (mode === "full") return { bright: pts, faint: [] };
-    if (mode === "first") {
-      const bright = [];
-      for (const p of pts) {
-        bright.push(p);
-        if (p.bounce >= 1 && p.hit) break;
+  function splitByBounce(pts) {
+    const segs = [[]];
+    let b = 0;
+    for (const p of pts) {
+      if ((p.bounce || 0) !== b) {
+        segs.push([]);
+        b = p.bounce || 0;
+        if (segs[segs.length - 2].length) segs[segs.length - 1].push(segs[segs.length - 2][segs[segs.length - 2].length - 1]);
       }
-      return { bright: bright.length ? bright : pts.slice(0, 8), faint: pts };
+      segs[segs.length - 1].push(p);
     }
-    const stub = [];
-    let acc = 0;
-    stub.push(pts[0]);
-    for (let i = 1; i < pts.length; i++) {
-      acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-      stub.push(pts[i]);
-      if (acc > 140) break;
-    }
-    return { bright: stub, faint: [] };
+    return segs.filter((s) => s.length > 1);
   }
 
-  function strokePoly(c, pts, alpha) {
+  function strokePoly(c, pts, alpha, bounced) {
     if (!pts || pts.length < 2) return;
     c.save();
     c.globalAlpha = alpha;
@@ -1344,48 +1336,50 @@
       for (let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
     };
     trace();
-    c.strokeStyle = "rgba(255, 196, 70, 0.4)";
-    c.lineWidth = 11;
+    c.strokeStyle = bounced ? "rgba(255, 230, 140, 0.55)" : "rgba(255, 196, 70, 0.4)";
+    c.lineWidth = bounced ? 13 : 11;
     c.setLineDash([]);
     c.stroke();
     trace();
-    c.strokeStyle = "#ffe7a0";
+    c.strokeStyle = bounced ? "#fff4b0" : "#ffe7a0";
     c.lineWidth = 4;
     c.setLineDash([11, 8]);
     c.stroke();
     c.setLineDash([]);
-    const last = pts[pts.length - 1];
-    c.strokeStyle = "#fff6c4";
-    c.lineWidth = 2.4;
-    c.beginPath();
-    c.moveTo(last.x - 9, last.y);
-    c.lineTo(last.x + 9, last.y);
-    c.moveTo(last.x, last.y - 9);
-    c.lineTo(last.x, last.y + 9);
-    c.stroke();
     c.restore();
   }
 
   function drawPath(c) {
     const trace = state.preview || currentTrace();
     if (!trace || !trace.path) return;
-    const all = densify(trace.path, 14);
+    const all = densify(trace.path, 12);
     if (all.length < 2) return;
     const tip = barrelTip();
-    const parts = clipPreview(all);
-    const bright = [{ x: tip.x, y: tip.y }].concat(parts.bright);
-    if (parts.faint && parts.faint.length > 2 && previewMode() === "first") {
-      strokePoly(c, parts.faint, 0.28);
-    }
-    strokePoly(c, bright, 1);
-    if (previewMode() !== "deadeye") {
-      for (const p of parts.bright) {
-        if (p.hit && p.hit.material && P.MATERIALS[p.hit.material] && P.MATERIALS[p.hit.material].spark) {
-          c.fillStyle = "#fff4c8";
-          c.beginPath();
-          c.arc(p.x, p.y, 5, 0, Math.PI * 2);
-          c.fill();
-        }
+    const pts = [{ x: tip.x, y: tip.y, bounce: 0 }].concat(all);
+    const segs = splitByBounce(pts);
+    for (let i = 0; i < segs.length; i++) strokePoly(c, segs[i], 1, i > 0);
+    const last = pts[pts.length - 1];
+    c.save();
+    c.strokeStyle = "#fff6c4";
+    c.lineWidth = 2.6;
+    c.beginPath();
+    c.moveTo(last.x - 10, last.y);
+    c.lineTo(last.x + 10, last.y);
+    c.moveTo(last.x, last.y - 10);
+    c.lineTo(last.x, last.y + 10);
+    c.stroke();
+    c.restore();
+    for (const p of pts) {
+      if (p.hit && p.hit.material && P.MATERIALS[p.hit.material] && P.MATERIALS[p.hit.material].spark) {
+        c.fillStyle = "#fff4c8";
+        c.beginPath();
+        c.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = "rgba(255, 220, 120, 0.9)";
+        c.lineWidth = 2;
+        c.beginPath();
+        c.arc(p.x, p.y, 11, 0, Math.PI * 2);
+        c.stroke();
       }
     }
   }

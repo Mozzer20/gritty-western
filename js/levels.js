@@ -43,9 +43,9 @@
       numeral: "III",
       name: "IRON HOOPS",
       bg: "street",
-      hint: "They duck. The thread dies after the first bounce.",
+      hint: "They duck. Follow the thread through the hoop.",
       par: 2,
-      preview: "first",
+      preview: "full",
       entities: [
         { type: "fence", x0: 250, x1: 470, y: 760 },
         { type: "barrel", x: 100, y: 640, s: 1.12 },
@@ -81,7 +81,7 @@
       bg: "saloon",
       hint: "Bank the tin. One slug can kiss two men.",
       par: 2,
-      preview: "first",
+      preview: "full",
       entities: [
         { type: "fence", x0: 250, x1: 470, y: 780 },
         { type: "sign", x: 610, y: 600, h: 200 },
@@ -98,7 +98,7 @@
       bg: "street",
       hint: "Three men walking. Lead the one on the boardwalk.",
       par: 3,
-      preview: "first",
+      preview: "full",
       entities: [
         { type: "fence", x0: 240, x1: 480, y: 800 },
         { type: "barrel", x: 360, y: 640, s: 1.05 },
@@ -134,9 +134,9 @@
       numeral: "VI",
       name: "THE STAR",
       bg: "gallows",
-      hint: "Deadeye. No thread. The marshal takes two — or one through the hat.",
+      hint: "The marshal takes two — or one through the hat.",
       par: 2,
-      preview: "deadeye",
+      preview: "full",
       entities: [
         { type: "crate", x: 360, y: 790, s: 1.2 },
         { type: "crate", x: 250, y: 700, s: 0.85 },
@@ -163,7 +163,7 @@
       bg: "canyon",
       hint: "Rock swallows slugs. Time the skillet.",
       par: 3,
-      preview: "deadeye",
+      preview: "full",
       entities: [
         { type: "fence", x0: 230, x1: 490, y: 790 },
         { type: "barrel", x: 360, y: 660, s: 1.05 },
@@ -201,7 +201,7 @@
       bg: "depot",
       hint: "Two bounces is a prayer. Three is a story.",
       par: 3,
-      preview: "deadeye",
+      preview: "full",
       entities: [
         { type: "crate", x: 360, y: 800, s: 1.1 },
         { type: "barrel", x: 200, y: 680, s: 1 },
@@ -230,7 +230,7 @@
       bg: "gallows",
       hint: "The whole county came. Empty the cylinder.",
       par: 4,
-      preview: "deadeye",
+      preview: "full",
       entities: [
         { type: "crate", x: 260, y: 780, s: 1 },
         { type: "crate", x: 480, y: 760, s: 1 },
