@@ -22,16 +22,16 @@
     canyon: "assets/art/bg-canyon.jpg",
     depot: "assets/art/bg-depot.jpg",
     gallows: "assets/art/bg-gallows.jpg",
-    revolver: "assets/characters/revolver.png",
-    outlaw: "assets/characters/outlaw.png",
-    outlawDraw: "assets/characters/outlaw-draw.png",
-    outlawDead: "assets/characters/outlaw-dead.png",
-    marshal: "assets/characters/marshal.png",
-    marshalDraw: "assets/characters/marshal-draw.png",
-    marshalDead: "assets/characters/marshal-dead.png",
-    sharp: "assets/characters/sharp.png",
-    sharpDraw: "assets/characters/sharp-draw.png",
-    sharpDead: "assets/characters/sharp-dead.png",
+    revolver: "assets/characters/revolver.webp",
+    outlaw: "assets/characters/outlaw.webp",
+    outlawDraw: "assets/characters/outlaw-draw.webp",
+    outlawDead: "assets/characters/outlaw-dead.webp",
+    marshal: "assets/characters/marshal.webp",
+    marshalDraw: "assets/characters/marshal-draw.webp",
+    marshalDead: "assets/characters/marshal-dead.webp",
+    sharp: "assets/characters/sharp.webp",
+    sharpDraw: "assets/characters/sharp-draw.webp",
+    sharpDead: "assets/characters/sharp-dead.webp",
     pan: "assets/props/pan.png",
     barrel: "assets/props/barrel.png",
     crate: "assets/props/crate.png",
@@ -1873,6 +1873,17 @@
     });
     $("btn-how").addEventListener("click", openHow);
     $("btn-how2").addEventListener("click", openHow);
+    $("btn-share").addEventListener("click", () => {
+      audio.unlock();
+      const url = "https://mozzer20.github.io/gritty-western/";
+      const title = "Bjango";
+      const text = "Bjango — The Gritty Western. Hold. Aim. Let go.";
+      if (navigator.share) {
+        navigator.share({ title: title, text: text, url: url }).catch(function () {});
+        return;
+      }
+      window.open("https://wa.me/?text=" + encodeURIComponent(text + " " + url), "_blank");
+    });
     $("btn-how-close").addEventListener("click", () => {
       $("overlay-how").hidden = true;
       if (state.mode === "fight" && !state.aiming && !state.bullet) showCoach(true);
