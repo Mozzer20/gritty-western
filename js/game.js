@@ -978,7 +978,8 @@
       for (const ev of b.events) {
         if (ev.dist > prev && ev.dist <= b.dist + 0.01) {
           if (ev.kind === "bounce") {
-            audio.ping(ev.bounce);
+            const isPan = ev.hit.body && ev.hit.body.ent && ev.hit.body.ent.type === "pan";
+            audio.ping(ev.bounce, isPan ? "pan" : null);
             rumblePat([4, 22, 8]);
             burst(ev.hit.x, ev.hit.y, "#f4e0a8", 20, 300);
             state.hitstop = 0.14;

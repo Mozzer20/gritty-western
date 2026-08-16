@@ -22,54 +22,92 @@
       this._theme = 0;
       this._wind = null;
       this._heartT = 0;
-      this._ughRaw = [];
-      this._ughBufs = [];
-      this._ughLast = -1;
-      this._fetchUghs();
+      this._banks = {
+        ugh: {
+          paths: ["assets/sfx/ugh.wav", "assets/sfx/ugh-2.wav", "assets/sfx/ugh-3.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
+        pan: {
+          paths: ["assets/sfx/pan-ping.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
+      };
+      this._fetchBanks();
     }
 
-    _fetchUghs() {
+    _fetchBanks() {
       const later = this;
-      const paths = ["assets/sfx/ugh.wav", "assets/sfx/ugh-2.wav", "assets/sfx/ugh-3.wav"];
-      paths.forEach(function (path, i) {
-        later._ughRaw[i] = null;
-        later._ughBufs[i] = null;
-        fetch(path)
-          .then(function (r) {
-            if (!r.ok) throw new Error("ugh missing");
-            return r.arrayBuffer();
-          })
-          .then(function (buf) {
-            later._ughRaw[i] = buf;
-            later._decodeUghs();
-          })
-          .catch(function () {});
+      Object.keys(this._banks).forEach(function (name) {
+        const bank = later._banks[name];
+        bank.paths.forEach(function (path, i) {
+          bank.raw[i] = null;
+          bank.bufs[i] = null;
+          fetch(path)
+            .then(function (r) {
+              if (!r.ok) throw new Error("sfx missing");
+              return r.arrayBuffer();
+            })
+            .then(function (buf) {
+              bank.raw[i] = buf;
+              later._decodeBanks();
+            })
+            .catch(function () {});
+        });
       });
     }
 
-    _decodeUghs() {
+    _decodeBanks() {
       if (!this.ctx) return;
       const later = this;
-      this._ughRaw.forEach(function (raw, i) {
-        if (!raw || later._ughBufs[i]) return;
-        const copy = raw.slice(0);
-        const p = later.ctx.decodeAudioData(copy);
-        if (p && typeof p.then === "function") {
-          p.then(function (decoded) {
-            later._ughBufs[i] = decoded;
-          }).catch(function () {});
-        } else {
-          later.ctx.decodeAudioData(copy, function (decoded) {
-            later._ughBufs[i] = decoded;
-          });
-        }
+      Object.keys(this._banks).forEach(function (name) {
+        const bank = later._banks[name];
+        bank.raw.forEach(function (raw, i) {
+          if (!raw || bank.bufs[i]) return;
+          const copy = raw.slice(0);
+          const p = later.ctx.decodeAudioData(copy);
+          if (p && typeof p.then === "function") {
+            p.then(function (decoded) {
+              bank.bufs[i] = decoded;
+            }).catch(function () {});
+          } else {
+            later.ctx.decodeAudioData(copy, function (decoded) {
+              bank.bufs[i] = decoded;
+            });
+          }
+        });
       });
+    }
+
+    _playBank(name, rate, gain) {
+      if (!this.ctx || this.muted) return false;
+      const bank = this._banks[name];
+      if (!bank) return false;
+      const ready = bank.bufs.filter(function (b) {
+        return !!b;
+      });
+      if (!ready.length) return false;
+      let pick = Math.floor(Math.random() * ready.length);
+      if (ready.length > 1 && pick === bank.last) pick = (pick + 1) % ready.length;
+      bank.last = pick;
+      const src = this.ctx.createBufferSource();
+      src.buffer = ready[pick];
+      src.playbackRate.value = rate;
+      const g = this.ctx.createGain();
+      g.gain.value = gain;
+      src.connect(g);
+      g.connect(this._out(1));
+      src.start();
+      return true;
     }
 
     unlock() {
       if (this.ctx) {
         if (this.ctx.state === "suspended") this.ctx.resume();
-        this._decodeUghs();
+        this._decodeBanks();
         return;
       }
       const AC = root.AudioContext || root.webkitAudioContext;
@@ -84,7 +122,7 @@
       this.master.connect(comp);
       comp.connect(this.ctx.destination);
       this._startWind();
-      this._decodeUghs();
+      this._decodeBanks();
     }
 
     setMuted(m) {
@@ -204,7 +242,11 @@
       this.tone(320, 0.05, "square", 0.04, 80, 1);
     }
 
-    ping(bounce) {
+    ping(bounce, kind) {
+      if (kind === "pan") {
+        const rate = 0.96 + (bounce || 0) * 0.05 + (Math.random() * 0.04 - 0.02);
+        if (this._playBank("pan", rate, 0.95)) return;
+      }
       const f = 1540 + bounce * 260;
       this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42);
       this.tone(f * 2.03, 0.09, "triangle", 0.05, f * 0.9, 0.42);
@@ -259,23 +301,8 @@
 
     ugh(head) {
       if (!this.ctx || this.muted) return;
-      const ready = this._ughBufs.filter(function (b) {
-        return !!b;
-      });
-      if (ready.length) {
-        let pick = Math.floor(Math.random() * ready.length);
-        if (ready.length > 1 && pick === this._ughLast) pick = (pick + 1) % ready.length;
-        this._ughLast = pick;
-        const src = this.ctx.createBufferSource();
-        src.buffer = ready[pick];
-        src.playbackRate.value = (head ? 1.06 : 0.96) + (Math.random() * 0.05 - 0.025);
-        const g = this.ctx.createGain();
-        g.gain.value = 0.95;
-        src.connect(g);
-        g.connect(this._out(1));
-        src.start();
-        return;
-      }
+      const rate = (head ? 1.06 : 0.96) + (Math.random() * 0.05 - 0.025);
+      if (this._playBank("ugh", rate, 0.95)) return;
       const now = this.ctx.currentTime;
       const pitch = (head ? 155 : 118) + Math.random() * 14;
       const o = this.ctx.createOscillator();
