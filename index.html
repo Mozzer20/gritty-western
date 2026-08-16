@@ -103,11 +103,22 @@
           </div>
         </div>
 
-        <div id="dock">
-          <button type="button" id="btn-home" hidden>HOME</button>
-          <button type="button" id="btn-mute">SOUND</button>
-          <button type="button" id="btn-how">HELP</button>
-        </div>
+        <button type="button" id="btn-menu" aria-label="Menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <div id="menu-scrim" hidden></div>
+        <nav id="menu" hidden aria-label="Menu">
+          <p class="menu-kicker">BJANGO</p>
+          <button type="button" id="btn-home" hidden>Home</button>
+          <button type="button" id="btn-how">How to play</button>
+          <button type="button" id="btn-share">Share</button>
+          <button type="button" id="btn-install" hidden>Add to Home Screen</button>
+          <button type="button" id="btn-new" hidden>Start over</button>
+          <button type="button" id="btn-mute">Sound on</button>
+          <p class="help-line install-line" id="install-help" hidden>
+            On iPhone: tap Share, then Add to Home Screen. It works like an app.
+          </p>
+        </nav>
 
         <div id="overlay-title" class="overlay">
           <div class="card">
@@ -120,14 +131,6 @@
             <div id="star-strip" class="star-strip" aria-label="Scene ranks"></div>
             <button class="btn" id="btn-start" type="button">PLAY</button>
             <p class="help-line" id="start-help">Tap and hold the street to aim. Drag, then let go to shoot.</p>
-            <button class="btn ghost" id="btn-new" type="button" hidden>START OVER</button>
-            <p class="help-line" id="new-help" hidden>Play again from street I. Your stars stay saved.</p>
-            <button class="btn ghost" id="btn-how2" type="button">HOW TO PLAY</button>
-            <button class="btn ghost" id="btn-share" type="button">SHARE</button>
-            <button class="btn ghost" id="btn-install" type="button" hidden>ADD TO HOME SCREEN</button>
-            <p class="help-line install-line" id="install-help" hidden>
-              On iPhone: tap Share, then Add to Home Screen. It works like an app.
-            </p>
           </div>
         </div>
 

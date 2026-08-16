@@ -795,6 +795,19 @@
     if (b) b.hidden = !on;
   }
 
+  function setMenuOpen(on) {
+    const menu = $("menu");
+    const scrim = $("menu-scrim");
+    const btn = $("btn-menu");
+    if (menu) menu.hidden = !on;
+    if (scrim) scrim.hidden = !on;
+    if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
+  }
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
   function showCoach(on) {
     const el = $("coach");
     if (el) el.hidden = !on;
@@ -818,6 +831,7 @@
     $("hold-cue").style.opacity = "0";
     showCoach(false);
     showHomeBtn(false);
+    closeMenu();
     if (state.replay) endReplay();
     else if ((from === "fight" || from === "brief") && state.lives > 0) snapshotRun();
     paintTitle();
@@ -829,7 +843,6 @@
     const strip = $("star-strip");
     if (!start) return;
     const help = $("start-help");
-    const newHelp = $("new-help");
     const stripHelp = $("strip-help");
     const done = state.unlocked >= GW.LEVELS.length;
     if (hasRun() && !done) {
@@ -852,7 +865,6 @@
     }
     const showNew = hasRun() || (state.unlocked > 0 && !done);
     if (neu) neu.hidden = !showNew;
-    if (newHelp) newHelp.hidden = !showNew;
     if (stripHelp) {
       stripHelp.textContent = state.unlocked > 0 ? "Tap a street to replay it. Your run stays." : "Your streets";
     }
@@ -1884,7 +1896,7 @@
 
   function onDown(ev) {
     if (state.mode !== "fight") return;
-    if (ev.target.closest && ev.target.closest("#dock, #cylinder-wrap, .overlay, button, #star-strip")) return;
+    if (ev.target.closest && ev.target.closest("#btn-menu, #menu, #menu-scrim, #cylinder-wrap, .overlay, button, #star-strip")) return;
     ev.preventDefault();
     const t = ev.touches ? ev.touches[0] : ev;
     if (ev.pointerId != null && ev.target.setPointerCapture) {
@@ -1968,7 +1980,10 @@
       if (hasRun() && state.unlocked < GW.LEVELS.length) resumeRun();
       else beginRun(state.unlocked > 0 ? continueLevel() : 0);
     });
-    $("btn-new").addEventListener("click", () => beginRun(0));
+    $("btn-new").addEventListener("click", () => {
+      closeMenu();
+      beginRun(0);
+    });
     $("btn-brief").addEventListener("click", () => {
       audio.unlock();
       startFight();
@@ -2010,17 +2025,25 @@
     });
     function openHow() {
       audio.unlock();
+      closeMenu();
       $("overlay-how").hidden = false;
       showCoach(false);
     }
+    $("btn-menu").addEventListener("click", () => {
+      audio.unlock();
+      const open = $("menu") && $("menu").hidden;
+      setMenuOpen(open);
+    });
+    $("menu-scrim").addEventListener("click", closeMenu);
     $("btn-home").addEventListener("click", () => {
       audio.unlock();
+      closeMenu();
       goHome();
     });
     $("btn-how").addEventListener("click", openHow);
-    $("btn-how2").addEventListener("click", openHow);
     $("btn-share").addEventListener("click", () => {
       audio.unlock();
+      closeMenu();
       const url = "https://mozzer20.github.io/gritty-western/";
       const title = "Bjango";
       const text = "Bjango — The Gritty Western. Hold. Aim. Let go.";
@@ -2032,6 +2055,7 @@
     });
     $("btn-install").addEventListener("click", () => {
       audio.unlock();
+      closeMenu();
       const ev = state.installPrompt;
       if (!ev) return;
       ev.prompt();
@@ -2048,7 +2072,7 @@
       audio.unlock();
       state.muted = !state.muted;
       audio.setMuted(state.muted);
-      $("btn-mute").textContent = state.muted ? "MUTED" : "SOUND";
+      $("btn-mute").textContent = state.muted ? "Sound off" : "Sound on";
     });
     $("cylinder-wrap").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -2056,6 +2080,7 @@
     });
     window.addEventListener("resize", fit);
     window.addEventListener("keydown", (e) => {
+      if (e.code === "Escape") closeMenu();
       if (e.code === "Space" && state.mode === "fight") {
         e.preventDefault();
         if (!state.aiming && !state.bullet) {
