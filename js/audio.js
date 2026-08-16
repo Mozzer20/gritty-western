@@ -22,11 +22,45 @@
       this._theme = 0;
       this._wind = null;
       this._heartT = 0;
+      this._ughRaw = null;
+      this._ughBuf = null;
+      this._fetchUgh();
+    }
+
+    _fetchUgh() {
+      const later = this;
+      fetch("assets/sfx/ugh.wav")
+        .then(function (r) {
+          if (!r.ok) throw new Error("ugh missing");
+          return r.arrayBuffer();
+        })
+        .then(function (buf) {
+          later._ughRaw = buf;
+          later._decodeUgh();
+        })
+        .catch(function () {});
+    }
+
+    _decodeUgh() {
+      if (!this.ctx || !this._ughRaw || this._ughBuf) return;
+      const later = this;
+      const copy = this._ughRaw.slice(0);
+      const p = this.ctx.decodeAudioData(copy);
+      if (p && typeof p.then === "function") {
+        p.then(function (decoded) {
+          later._ughBuf = decoded;
+        }).catch(function () {});
+      } else {
+        this.ctx.decodeAudioData(copy, function (decoded) {
+          later._ughBuf = decoded;
+        });
+      }
     }
 
     unlock() {
       if (this.ctx) {
         if (this.ctx.state === "suspended") this.ctx.resume();
+        this._decodeUgh();
         return;
       }
       const AC = root.AudioContext || root.webkitAudioContext;
@@ -41,6 +75,7 @@
       this.master.connect(comp);
       comp.connect(this.ctx.destination);
       this._startWind();
+      this._decodeUgh();
     }
 
     setMuted(m) {
@@ -215,6 +250,17 @@
 
     ugh(head) {
       if (!this.ctx || this.muted) return;
+      if (this._ughBuf) {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this._ughBuf;
+        src.playbackRate.value = (head ? 1.06 : 0.96) + (Math.random() * 0.05 - 0.025);
+        const g = this.ctx.createGain();
+        g.gain.value = 0.95;
+        src.connect(g);
+        g.connect(this._out(1));
+        src.start();
+        return;
+      }
       const now = this.ctx.currentTime;
       const pitch = (head ? 155 : 118) + Math.random() * 14;
       const o = this.ctx.createOscillator();
