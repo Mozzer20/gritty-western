@@ -1307,8 +1307,13 @@
     }
     if (e.flash > 0) {
       ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = "rgba(255, 220, 160, 0.25)";
-      ctx.fillRect(-70, -240 * d, 140, 240 * d);
+      const glow = ctx.createRadialGradient(0, -110 * d, 8, 0, -90 * d, 90 * d);
+      glow.addColorStop(0, "rgba(255, 230, 170, 0.45)");
+      glow.addColorStop(1, "rgba(255, 200, 120, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, -100 * d, 90 * d, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
