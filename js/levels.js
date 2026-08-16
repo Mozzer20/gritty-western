@@ -15,7 +15,7 @@
       numeral: "I",
       name: "HIGH DRAW",
       bg: "street",
-      hint: "No skillet. Hold. Put the thread on him. Let go first.",
+      hint: "Hold the screen. Drag the gold line onto him. Let go to shoot.",
       par: 1,
       preview: "full",
       entities: [

@@ -41,11 +41,11 @@
         <div id="hud">
           <div id="hud-top">
             <div class="stat">
-              <span class="lbl">BOUNTY</span>
+              <span class="lbl">SCORE</span>
               <b id="scoreEl">0</b>
             </div>
             <div class="stat" style="text-align: center">
-              <span class="lbl">BLOOD</span>
+              <span class="lbl">LIVES</span>
               <div id="hearts">♥ ♥ ♥</div>
             </div>
             <div class="stat right">
@@ -56,7 +56,7 @@
           <div id="chapter"></div>
           <div id="callout"></div>
           <div id="hint"></div>
-          <div id="hold-cue">HOLD TO DRAW</div>
+          <div id="hold-cue">HOLD TO AIM</div>
           <div id="cylinder-wrap" title="Tap to reload">
             <canvas id="cylinder" width="184" height="184"></canvas>
           </div>
@@ -64,7 +64,7 @@
 
         <div id="dock">
           <button type="button" id="btn-mute">SOUND</button>
-          <button type="button" id="btn-how">LAW</button>
+          <button type="button" id="btn-how">HELP</button>
         </div>
 
         <div id="overlay-title" class="overlay">
@@ -73,21 +73,25 @@
             <img id="portrait" alt="" />
             <h1 class="brand"><span>THE GRITTY</span><span>WESTERN</span></h1>
             <p class="tag">ACTION &amp; TIMING</p>
+            <p class="help-line" id="strip-help">Your streets</p>
             <div id="star-strip" class="star-strip" aria-label="Scene ranks"></div>
-            <button class="btn" id="btn-start" type="button">DRAW</button>
-            <button class="btn ghost" id="btn-new" type="button" hidden>NEW COUNTY</button>
-            <button class="btn ghost" id="btn-how2" type="button">THE LAW</button>
+            <button class="btn" id="btn-start" type="button">PLAY</button>
+            <p class="help-line" id="start-help">Hold the screen. Drag to aim. Let go to shoot.</p>
+            <button class="btn ghost" id="btn-new" type="button" hidden>START OVER</button>
+            <p class="help-line" id="new-help" hidden>Play again from street I. Your stars stay saved.</p>
+            <button class="btn ghost" id="btn-how2" type="button">HOW TO PLAY</button>
           </div>
         </div>
 
         <div id="overlay-how" class="overlay" hidden>
           <div class="card how">
-            <p class="brand-kicker">THE LAW</p>
-            <h2 class="scene-name">Bullet Time</h2>
-            <p>Hold the glass. The county crawls. Drag with one thumb. A gold thread shows the whole shot — including every bounce off skillet, hoop, or tin.</p>
-            <p>Metal sings. Wood swallows. After a bounce the slug can kiss a second man. Headshots stop it. The skillet swings — fire when the thread lands.</p>
-            <p>They peek, pace, and draw. If their iron clears first, you bleed. Tap the cylinder to reload. One slug is three stars.</p>
-            <button class="btn" id="btn-how-close" type="button">I HEAR YOU</button>
+            <p class="brand-kicker">HOW TO PLAY</p>
+            <h2 class="scene-name">One thumb</h2>
+            <p><b>1.</b> Hold the screen. Time slows. A gold dotted line shows where the bullet will go — including bounces.</p>
+            <p><b>2.</b> Drag that line onto a skillet, barrel, or tin sign so it kicks into the man behind cover. Let go to fire.</p>
+            <p><b>3.</b> Metal bounces the shot. Wood stops it. Kill everyone before they shoot you. Tap the six-shot cylinder to reload.</p>
+            <p>Stars: clear the street · extra star if you use few shots · three stars for one bullet.</p>
+            <button class="btn" id="btn-how-close" type="button">GOT IT</button>
           </div>
         </div>
 
@@ -97,7 +101,7 @@
             <p class="numeral" id="brief-numeral">I</p>
             <h2 class="scene-name" id="brief-name">THE HANGING PAN</h2>
             <p id="brief-hint">Hold. Slide until the gold thread kisses him. Let go.</p>
-            <button class="btn" id="btn-brief" type="button">STEP INTO THE STREET</button>
+            <button class="btn" id="btn-brief" type="button">PLAY THIS STREET</button>
           </div>
         </div>
 
@@ -108,7 +112,7 @@
             <p id="end-stars" class="end-stars"></p>
             <p id="end-detail"></p>
             <button class="btn" id="btn-next" type="button">NEXT STREET</button>
-            <button class="btn ghost" id="btn-retry" type="button">AGAIN</button>
+            <button class="btn ghost" id="btn-retry" type="button">PLAY AGAIN</button>
           </div>
         </div>
       </div>

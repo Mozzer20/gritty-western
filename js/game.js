@@ -228,7 +228,7 @@
     $("chapter").textContent = L.name;
     $("hint").textContent = L.hint;
     $("hint").classList.add("show");
-    $("hold-cue").textContent = "HOLD TO DRAW";
+    $("hold-cue").textContent = "HOLD TO AIM";
     $("hold-cue").style.opacity = "0.6";
     $("scoreEl").textContent = fmt(state.score);
     renderHearts();
@@ -577,12 +577,12 @@
     $("end-detail").textContent =
       (state.sceneShots === 1 ? "One slug. " : state.sceneShots + " shots. ") +
       (state.sceneChains ? "Two names on one bullet. " : "") +
-      "Bounty " +
+      "Score " +
       fmt(state.score) +
       ".";
     const last = state.level >= GW.LEVELS.length - 1;
     $("btn-next").hidden = false;
-    $("btn-next").textContent = last ? "RIDE AGAIN" : "NEXT STREET";
+    $("btn-next").textContent = last ? "PLAY FROM START" : "NEXT STREET";
     if (last) {
       $("end-kicker").textContent = "RED DUST COUNTY";
       $("end-name").textContent = "THE END";
@@ -611,7 +611,7 @@
       $("end-kicker").textContent = "DEAD IN THE DUST";
       $("end-name").textContent = "GAME OVER";
       $("end-stars").textContent = "";
-      $("end-detail").textContent = "Bounty " + fmt(state.score) + ".";
+      $("end-detail").textContent = "Score " + fmt(state.score) + ".";
       $("btn-next").hidden = true;
       $("overlay-end").hidden = false;
       paintTitle();
@@ -638,7 +638,7 @@
     $("overlay-brief").hidden = true;
     buildLevel(state.level);
     state.mode = "fight";
-    stamp("DRAW");
+    stamp("AIM");
     audio.whistle();
   }
 
@@ -652,12 +652,26 @@
     const neu = $("btn-new");
     const strip = $("star-strip");
     if (!start) return;
+    const help = $("start-help");
+    const newHelp = $("new-help");
     if (state.unlocked > 0) {
-      start.textContent = state.unlocked >= GW.LEVELS.length ? "RIDE AGAIN" : "BACK TO THE STREET";
+      const done = state.unlocked >= GW.LEVELS.length;
+      start.textContent = done ? "PLAY FROM START" : "CONTINUE";
+      if (help) {
+        if (done) {
+          help.textContent = "You finished the county. Play the first street again.";
+        } else {
+          const nxt = GW.LEVELS[continueLevel()];
+          help.textContent = "Continue from " + nxt.numeral + " · " + nxt.name + ".";
+        }
+      }
       if (neu) neu.hidden = false;
+      if (newHelp) newHelp.hidden = false;
     } else {
-      start.textContent = "DRAW";
+      start.textContent = "PLAY";
+      if (help) help.textContent = "Hold the screen. Drag to aim. Let go to shoot.";
       if (neu) neu.hidden = true;
+      if (newHelp) newHelp.hidden = true;
     }
     if (!strip) return;
     strip.innerHTML = "";
@@ -858,7 +872,7 @@
       state.preview = tr;
       const lethal = tr.end && tr.end.body && tr.end.body.tag;
       const cue = $("hold-cue");
-      cue.textContent = lethal ? (tr.bounces ? "BANK ON HIM" : "ON HIM") : "HOLD · SLIDE";
+      cue.textContent = lethal ? (tr.bounces ? "BOUNCE WILL HIT" : "WILL HIT") : "DRAG TO AIM";
       cue.style.opacity = "0.9";
       state.heartT -= dt;
       if (state.heartT <= 0) {

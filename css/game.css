@@ -316,11 +316,21 @@ canvas#sight {
 .brand span { display: block; }
 
 .tag {
-  margin: 14px 0 28px;
+  margin: 14px 0 12px;
   letter-spacing: 0.28em;
   font-size: 12px;
   color: var(--dust);
 }
+
+.help-line {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--dust);
+}
+
+.help-line[hidden] { display: none !important; }
 
 .btn {
   display: block;
