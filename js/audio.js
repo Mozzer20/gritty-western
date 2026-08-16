@@ -107,6 +107,12 @@
           bufs: [],
           last: -1,
         },
+        dust: {
+          paths: ["assets/sfx/dust-1.mp3"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -339,6 +345,12 @@
     lock() {
       this.tone(880, 0.035, "sine", 0.05, 640, 1);
       this.noise(0.018, 0.06, 2000, 7000, 1);
+    }
+
+    dust() {
+      const rate = 0.96 + Math.random() * 0.08;
+      if (this._playBank("dust", rate, 0.9)) return;
+      this.noise(0.16, 0.18, 80, 500, 0.5);
     }
 
     wood() {

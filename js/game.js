@@ -1157,6 +1157,7 @@
         if (b.kills === 0 && last.hit && last.hit.body && last.hit.body.tag) {
           applyKill(last.hit, b.bounces, 0);
         } else if (b.kills === 0) {
+          audio.dust();
           stamp("DUST");
           state.ghost = { pts: b.pts, t: 1.05 };
         }
