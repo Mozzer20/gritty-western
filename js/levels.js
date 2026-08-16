@@ -28,7 +28,7 @@
       numeral: "II",
       name: "THE HANGING PAN",
       bg: "street",
-      hint: "The skillet swings. Catch it at the end of the gold thread.",
+      hint: "The pan swings. Hold and drag the gold line onto it so the shot bounces into him. Let go.",
       par: 1,
       preview: "full",
       entities: [
@@ -43,7 +43,7 @@
       numeral: "III",
       name: "IRON HOOPS",
       bg: "street",
-      hint: "They duck behind the wood. Wait for BOUNCE WILL HIT, then let go.",
+      hint: "They hide behind the wood. Bounce the shot off a barrel. Wait until it says BOUNCE WILL HIT, then let go.",
       par: 2,
       preview: "full",
       entities: [
@@ -79,7 +79,7 @@
       numeral: "IV",
       name: "SALOON GLASS",
       bg: "saloon",
-      hint: "Bank the tin. One slug can kiss two men.",
+      hint: "Bounce the shot off the metal sign. One bullet can hit both men.",
       par: 2,
       preview: "full",
       entities: [
@@ -96,7 +96,7 @@
       numeral: "V",
       name: "STREET SWEEP",
       bg: "street",
-      hint: "Three men walking. Lead the one on the boardwalk.",
+      hint: "Three men. Hold and drag the gold line onto the one who is walking, then bounce to the others.",
       par: 3,
       preview: "full",
       entities: [
@@ -134,7 +134,7 @@
       numeral: "VI",
       name: "THE STAR",
       bg: "gallows",
-      hint: "The marshal takes two — or one through the hat.",
+      hint: "The marshal needs two hits — or one in the hat. Bounce off the pan or the sign.",
       par: 2,
       preview: "full",
       entities: [
@@ -161,7 +161,7 @@
       numeral: "VII",
       name: "CANYON CROSS",
       bg: "canyon",
-      hint: "Rock swallows slugs. Time the skillet.",
+      hint: "Shots die in the rock. Hold and drag the gold line onto the swinging pan, then let go.",
       par: 3,
       preview: "full",
       entities: [
@@ -199,7 +199,7 @@
       numeral: "VIII",
       name: "IRON HORSE",
       bg: "depot",
-      hint: "Two bounces is a prayer. Three is a story.",
+      hint: "Bounce off more than one thing — pan, barrel, or sign — to reach the men in back.",
       par: 3,
       preview: "full",
       entities: [
@@ -228,7 +228,7 @@
       numeral: "IX",
       name: "HIGH NOON",
       bg: "gallows",
-      hint: "The whole county came. Empty the cylinder.",
+      hint: "Four men. Hold, drag, bounce, and let go. Tap the cylinder if you run empty.",
       par: 4,
       preview: "full",
       entities: [
