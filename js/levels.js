@@ -43,7 +43,7 @@
       numeral: "III",
       name: "IRON HOOPS",
       bg: "street",
-      hint: "They duck. Follow the thread through the hoop.",
+      hint: "They duck behind the wood. Wait for BOUNCE WILL HIT, then let go.",
       par: 2,
       preview: "full",
       entities: [

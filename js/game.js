@@ -252,14 +252,14 @@
     ];
     for (const e of state.entities) {
       if (e.type === "enemy") {
-        if (e.dead || e.hidden) continue;
+        if (e.dead) continue;
         const sc = 0.92 * (e.s || 1);
         bodies.push({
           id: e.id,
           kind: "circle",
           x: e.x,
-          y: e.y - 86 * sc,
-          r: 32 * sc,
+          y: e.y - 90 * sc,
+          r: 44 * sc,
           material: "flesh",
           tag: "body",
           ent: e,
@@ -268,8 +268,8 @@
           id: e.id + "-head",
           kind: "circle",
           x: e.x,
-          y: e.y - 154 * sc,
-          r: 17 * sc,
+          y: e.y - 158 * sc,
+          r: 22 * sc,
           material: "flesh",
           tag: "head",
           ent: e,
@@ -696,6 +696,8 @@
   }
 
   function updateStreet(wdt) {
+    // Freeze motion while aiming or the slug is in the air so WILL HIT stays true.
+    if (state.aiming || state.bullet) return;
     for (const e of state.entities) {
       if (e.type === "pan" && e.swing) {
         e.phase += (Math.PI * 2 * wdt) / (e.period || 3);
