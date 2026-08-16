@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Gritty Western" />
+    <meta name="theme-color" content="#100a07" />
+    <meta
+      name="description"
+      content="The Gritty Western — a cinematic mobile bullet-time ricochet shooter."
+    />
+    <title>The Gritty Western</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="assets/icons/favicon.png" />
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Rye&family=Special+Elite&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/game.css" />
+  </head>
+  <body>
+    <div id="rotate">TURN THE PHONE<br />PORTRAIT ONLY</div>
+    <div id="app">
+      <div id="stage">
+        <canvas id="view" width="720" height="1280"></canvas>
+        <div class="film" aria-hidden="true"></div>
+        <div id="bt-veil" aria-hidden="true"></div>
+        <div class="grain" aria-hidden="true"></div>
+        <div id="flash" aria-hidden="true"></div>
+
+        <div id="hud">
+          <div id="hud-top">
+            <div class="stat">
+              <span class="lbl">BOUNTY</span>
+              <b id="scoreEl">0</b>
+            </div>
+            <div class="stat" style="text-align: center">
+              <span class="lbl">BLOOD</span>
+              <div id="hearts">♥ ♥ ♥</div>
+            </div>
+            <div class="stat right">
+              <span class="lbl">BEST</span>
+              <b id="bestEl">0</b>
+            </div>
+          </div>
+          <div id="chapter"></div>
+          <div id="callout"></div>
+          <div id="hint"></div>
+          <div id="hold-cue">HOLD TO DRAW</div>
+          <div id="cylinder-wrap" title="Tap to reload">
+            <canvas id="cylinder" width="184" height="184"></canvas>
+          </div>
+        </div>
+
+        <div id="dock">
+          <button type="button" id="btn-mute">SOUND</button>
+          <button type="button" id="btn-how">LAW</button>
+        </div>
+
+        <div id="overlay-title" class="overlay">
+          <div class="card">
+            <p class="brand-kicker">A RED DUST PICTURE</p>
+            <img id="portrait" alt="" />
+            <h1 class="brand"><span>THE GRITTY</span><span>WESTERN</span></h1>
+            <p class="tag">ACTION &amp; TIMING</p>
+            <div id="star-strip" class="star-strip" aria-label="Scene ranks"></div>
+            <button class="btn" id="btn-start" type="button">DRAW</button>
+            <button class="btn ghost" id="btn-new" type="button" hidden>NEW COUNTY</button>
+            <button class="btn ghost" id="btn-how2" type="button">THE LAW</button>
+          </div>
+        </div>
+
+        <div id="overlay-how" class="overlay" hidden>
+          <div class="card how">
+            <p class="brand-kicker">THE LAW</p>
+            <h2 class="scene-name">Bullet Time</h2>
+            <p>Hold the glass. The county crawls. Drag with one thumb. A gold thread shows the truth — then, later, it lies a little. After a miss it flashes the real path.</p>
+            <p>Metal sings. Wood swallows. After a bounce the slug can kiss a second man. Headshots stop it. The skillet swings — fire when the thread lands.</p>
+            <p>They peek, pace, and draw. If their iron clears first, you bleed. Tap the cylinder to reload. One slug is three stars.</p>
+            <button class="btn" id="btn-how-close" type="button">I HEAR YOU</button>
+          </div>
+        </div>
+
+        <div id="overlay-brief" class="overlay" hidden>
+          <div class="card brief">
+            <p class="brand-kicker" id="brief-chapter">RED DUST COUNTY</p>
+            <p class="numeral" id="brief-numeral">I</p>
+            <h2 class="scene-name" id="brief-name">THE HANGING PAN</h2>
+            <p id="brief-hint">Hold. Slide until the gold thread kisses him. Let go.</p>
+            <button class="btn" id="btn-brief" type="button">STEP INTO THE STREET</button>
+          </div>
+        </div>
+
+        <div id="overlay-end" class="overlay" hidden>
+          <div class="card end">
+            <p class="brand-kicker" id="end-kicker">SCENE</p>
+            <h2 class="scene-name" id="end-name">CLEAR</h2>
+            <p id="end-stars" class="end-stars"></p>
+            <p id="end-detail"></p>
+            <button class="btn" id="btn-next" type="button">NEXT STREET</button>
+            <button class="btn ghost" id="btn-retry" type="button">AGAIN</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var p = location.pathname;
+        if (p && !p.endsWith("/") && !p.endsWith(".html")) {
+          location.replace(p + "/" + location.search + location.hash);
+        }
+      })();
+    </script>
+    <script src="js/physics.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/levels.js"></script>
+    <script src="js/game.js"></script>
+  </body>
+</html>

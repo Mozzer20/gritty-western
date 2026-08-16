@@ -1,0 +1,14 @@
+{
+  "name": "The Gritty Western",
+  "short_name": "Gritty Western",
+  "description": "Cinematic Wild West bullet-time ricochet shooter.",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#100a07",
+  "theme_color": "#100a07",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
