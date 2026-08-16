@@ -70,6 +70,12 @@
           bufs: [],
           last: -1,
         },
+        barrel: {
+          paths: ["assets/sfx/barrel-1.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -288,6 +294,10 @@
       if (kind === "plate") {
         const rate = 0.97 + (bounce || 0) * 0.03 + (Math.random() * 0.04 - 0.02);
         if (this._playBank("plate", rate, 0.9)) return;
+      }
+      if (kind === "barrel") {
+        const rate = 0.96 + (bounce || 0) * 0.03 + (Math.random() * 0.05 - 0.02);
+        if (this._playBank("barrel", rate, 0.95)) return;
       }
       const f = 1540 + bounce * 260;
       this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42);
