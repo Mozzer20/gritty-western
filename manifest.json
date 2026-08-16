@@ -1,14 +1,52 @@
 {
+  "id": "/gritty-western/",
   "name": "Bjango",
   "short_name": "Bjango",
-  "description": "Bjango — The Gritty Western. Cinematic bullet-time ricochet shooter.",
-  "start_url": ".",
+  "description": "Bjango — The Gritty Western. A cinematic mobile bullet-time ricochet shooter.",
+  "start_url": "/gritty-western/",
+  "scope": "/gritty-western/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
   "orientation": "portrait",
   "background_color": "#100a07",
   "theme_color": "#100a07",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["games"],
   "icons": [
-    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/ui/screenshot-phone.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Bjango on a phone"
+    },
+    {
+      "src": "assets/ui/screenshot-wide.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Bjango"
+    }
   ]
 }

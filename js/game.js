@@ -32,10 +32,10 @@
     sharp: "assets/characters/sharp.webp",
     sharpDraw: "assets/characters/sharp-draw.webp",
     sharpDead: "assets/characters/sharp-dead.webp",
-    pan: "assets/props/pan.png",
-    barrel: "assets/props/barrel.png",
-    crate: "assets/props/crate.png",
-    sign: "assets/props/sign.png",
+    pan: "assets/props/pan.webp",
+    barrel: "assets/props/barrel.webp",
+    crate: "assets/props/crate.webp",
+    sign: "assets/props/sign.webp",
   };
 
   const images = {};
@@ -98,6 +98,7 @@
     run: null,
     replay: false,
     stash: null,
+    installPrompt: null,
   };
 
   function loadSave() {
@@ -188,9 +189,22 @@
   }
 
   function paintInstall() {
-    const el = $("install-help");
-    if (!el) return;
-    el.hidden = !(isIosDevice() && !isStandaloneApp());
+    const help = $("install-help");
+    const btn = $("btn-install");
+    const standalone = isStandaloneApp();
+    if (btn) btn.hidden = standalone || !state.installPrompt;
+    if (!help) return;
+    if (standalone) {
+      help.hidden = true;
+    } else if (isIosDevice()) {
+      help.hidden = false;
+      help.textContent = "On iPhone: tap Share, then Add to Home Screen. It works like an app.";
+    } else if (state.installPrompt) {
+      help.hidden = true;
+    } else {
+      help.hidden = false;
+      help.textContent = "On Android: tap the browser menu, then Add to Home screen.";
+    }
   }
 
   function fmt(n) {
@@ -2016,6 +2030,16 @@
       }
       window.open("https://wa.me/?text=" + encodeURIComponent(text + " " + url), "_blank");
     });
+    $("btn-install").addEventListener("click", () => {
+      audio.unlock();
+      const ev = state.installPrompt;
+      if (!ev) return;
+      ev.prompt();
+      ev.userChoice.finally(function () {
+        state.installPrompt = null;
+        paintInstall();
+      });
+    });
     $("btn-how-close").addEventListener("click", () => {
       $("overlay-how").hidden = true;
       if (state.mode === "fight" && !state.aiming && !state.bullet) showCoach(true);
@@ -2067,8 +2091,17 @@
       }
     });
     requestAnimationFrame(loop(performance.now()));
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      state.installPrompt = e;
+      paintInstall();
+    });
+    window.addEventListener("appinstalled", () => {
+      state.installPrompt = null;
+      paintInstall();
+    });
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
+      navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {});
     }
   }
 

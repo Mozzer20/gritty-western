@@ -1,5 +1,5 @@
-const CACHE = "bjango-v17";
-const ASSETS = [
+const CACHE = "bjango-v18";
+const CORE = [
   "./",
   "./index.html",
   "./css/game.css",
@@ -8,27 +8,20 @@ const ASSETS = [
   "./js/levels.js",
   "./js/game.js",
   "./manifest.json",
-  "./assets/sfx/ugh.wav",
-  "./assets/sfx/ugh-2.wav",
-  "./assets/sfx/ugh-3.wav",
-  "./assets/sfx/pan-ping.wav",
-  "./assets/sfx/drop-1.wav",
-  "./assets/sfx/drop-2.wav",
-  "./assets/sfx/drop-3.wav",
-  "./assets/sfx/drop-4.wav",
-  "./assets/sfx/gun-1.wav",
-  "./assets/sfx/gun-2.wav",
-  "./assets/sfx/gun-3.wav",
-  "./assets/sfx/gun-4.wav",
-  "./assets/sfx/wood-1.wav",
-  "./assets/sfx/cock-1.wav",
-  "./assets/sfx/plate-1.wav",
-  "./assets/sfx/barrel-1.wav",
-  "./assets/sfx/wind-1.wav",
+  "./assets/characters/title-cowboy.webp",
+  "./assets/icons/favicon.png",
+  "./assets/icons/apple-touch-icon.png",
+  "./assets/icons/icon-192.png",
+  "./assets/icons/icon-512.png",
+  "./assets/icons/icon-maskable-512.png",
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE).then((cache) =>
+      Promise.all(CORE.map((url) => cache.add(url).catch(() => {})))
+    ).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -41,12 +34,16 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then((hit) => {
       const live = fetch(e.request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
           return res;
         })
         .catch(() => hit);
