@@ -52,6 +52,12 @@
           bufs: [],
           last: -1,
         },
+        wood: {
+          paths: ["assets/sfx/wood-1.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -279,6 +285,8 @@
     }
 
     wood() {
+      const rate = 0.96 + Math.random() * 0.08;
+      if (this._playBank("wood", rate, 0.95)) return;
       this.noise(0.12, 0.22, 80, 700, 0.55);
       this.tone(110, 0.14, "triangle", 0.08, 50, 0.55);
     }
