@@ -35,6 +35,17 @@
           bufs: [],
           last: -1,
         },
+        drop: {
+          paths: [
+            "assets/sfx/drop-1.wav",
+            "assets/sfx/drop-2.wav",
+            "assets/sfx/drop-3.wav",
+            "assets/sfx/drop-4.wav",
+          ],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -294,6 +305,8 @@
     }
 
     thud() {
+      const rate = 0.96 + Math.random() * 0.08;
+      if (this._playBank("drop", rate, 0.95)) return;
       this.tone(58, 0.34, "sine", 0.24, 24, 0.62);
       this.tone(92, 0.18, "triangle", 0.07, 40, 0.62);
       this.noise(0.2, 0.16, 60, 420, 0.58);

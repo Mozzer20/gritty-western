@@ -537,14 +537,14 @@
     state.hitstop = head ? 0.12 : 0.1;
     state.shake = 16;
     audio.ugh(head);
-    setTimeout(function () {
-      audio.thud();
-    }, 90);
     rumblePat(head ? [6, 18, 8, 40, 50] : [8, 14, 10, 32, 36]);
     burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 22 : 16, 240);
     if (e.hp <= 0) {
       e.dead = true;
       e.fall = 0.01;
+      setTimeout(function () {
+        audio.thud();
+      }, 180);
       spawnHat(e);
       state.sceneKills += 1;
       if (chainIndex > 0) state.sceneChains += 1;
