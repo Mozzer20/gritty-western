@@ -22,45 +22,54 @@
       this._theme = 0;
       this._wind = null;
       this._heartT = 0;
-      this._ughRaw = null;
-      this._ughBuf = null;
-      this._fetchUgh();
+      this._ughRaw = [];
+      this._ughBufs = [];
+      this._ughLast = -1;
+      this._fetchUghs();
     }
 
-    _fetchUgh() {
+    _fetchUghs() {
       const later = this;
-      fetch("assets/sfx/ugh.wav")
-        .then(function (r) {
-          if (!r.ok) throw new Error("ugh missing");
-          return r.arrayBuffer();
-        })
-        .then(function (buf) {
-          later._ughRaw = buf;
-          later._decodeUgh();
-        })
-        .catch(function () {});
+      const paths = ["assets/sfx/ugh.wav", "assets/sfx/ugh-2.wav", "assets/sfx/ugh-3.wav"];
+      paths.forEach(function (path, i) {
+        later._ughRaw[i] = null;
+        later._ughBufs[i] = null;
+        fetch(path)
+          .then(function (r) {
+            if (!r.ok) throw new Error("ugh missing");
+            return r.arrayBuffer();
+          })
+          .then(function (buf) {
+            later._ughRaw[i] = buf;
+            later._decodeUghs();
+          })
+          .catch(function () {});
+      });
     }
 
-    _decodeUgh() {
-      if (!this.ctx || !this._ughRaw || this._ughBuf) return;
+    _decodeUghs() {
+      if (!this.ctx) return;
       const later = this;
-      const copy = this._ughRaw.slice(0);
-      const p = this.ctx.decodeAudioData(copy);
-      if (p && typeof p.then === "function") {
-        p.then(function (decoded) {
-          later._ughBuf = decoded;
-        }).catch(function () {});
-      } else {
-        this.ctx.decodeAudioData(copy, function (decoded) {
-          later._ughBuf = decoded;
-        });
-      }
+      this._ughRaw.forEach(function (raw, i) {
+        if (!raw || later._ughBufs[i]) return;
+        const copy = raw.slice(0);
+        const p = later.ctx.decodeAudioData(copy);
+        if (p && typeof p.then === "function") {
+          p.then(function (decoded) {
+            later._ughBufs[i] = decoded;
+          }).catch(function () {});
+        } else {
+          later.ctx.decodeAudioData(copy, function (decoded) {
+            later._ughBufs[i] = decoded;
+          });
+        }
+      });
     }
 
     unlock() {
       if (this.ctx) {
         if (this.ctx.state === "suspended") this.ctx.resume();
-        this._decodeUgh();
+        this._decodeUghs();
         return;
       }
       const AC = root.AudioContext || root.webkitAudioContext;
@@ -75,7 +84,7 @@
       this.master.connect(comp);
       comp.connect(this.ctx.destination);
       this._startWind();
-      this._decodeUgh();
+      this._decodeUghs();
     }
 
     setMuted(m) {
@@ -250,9 +259,15 @@
 
     ugh(head) {
       if (!this.ctx || this.muted) return;
-      if (this._ughBuf) {
+      const ready = this._ughBufs.filter(function (b) {
+        return !!b;
+      });
+      if (ready.length) {
+        let pick = Math.floor(Math.random() * ready.length);
+        if (ready.length > 1 && pick === this._ughLast) pick = (pick + 1) % ready.length;
+        this._ughLast = pick;
         const src = this.ctx.createBufferSource();
-        src.buffer = this._ughBuf;
+        src.buffer = ready[pick];
         src.playbackRate.value = (head ? 1.06 : 0.96) + (Math.random() * 0.05 - 0.025);
         const g = this.ctx.createGain();
         g.gain.value = 0.95;
