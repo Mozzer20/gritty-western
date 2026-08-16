@@ -1,4 +1,4 @@
-const CACHE = "gritty-western-v14";
+const CACHE = "bjango-v1";
 const ASSETS = [
   "./",
   "./index.html",

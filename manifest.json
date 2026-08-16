@@ -1,7 +1,7 @@
 {
-  "name": "The Gritty Western",
-  "short_name": "Gritty Western",
-  "description": "Cinematic Wild West bullet-time ricochet shooter.",
+  "name": "Bjango",
+  "short_name": "Bjango",
+  "description": "Bjango — The Gritty Western. Cinematic bullet-time ricochet shooter.",
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",
