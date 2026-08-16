@@ -74,6 +74,10 @@
     hats: [],
     muzzleFlash: 0,
     recoil: 0,
+    aimWarm: 0,
+    lockId: null,
+    cylKick: 0,
+    pendingStamp: 0,
     motes: [],
     shake: 0,
     hitstop: 0,
@@ -232,6 +236,10 @@
     state.hats = [];
     state.muzzleFlash = 0;
     state.recoil = 0;
+    state.aimWarm = 0;
+    state.lockId = null;
+    state.cylKick = 0;
+    state.pendingStamp = 0;
     resetCam();
     spawnMotes();
     $("chapter").textContent = L.name;
@@ -456,18 +464,26 @@
     };
     state.aiming = false;
     state.ghost = null;
+    audio.stopHeart();
     audio.gunshot();
     audio.slam();
-    rumblePat([12, 30, 28]);
+    rumblePat([8, 40, 36, 20, 18]);
     flash();
-    state.shake = 14;
-    state.muzzleFlash = 0.12;
+    state.shake = 16;
+    state.muzzleFlash = 0.13;
     state.recoil = 1;
+    state.cylKick = 1;
+    state.timeScale = 0.12;
     const tip = barrelTip();
     burst(tip.x, tip.y, "#f3d48a", 14, 260);
     spawnCasing();
     spawnSmoke(tip.x, tip.y);
+    for (let i = 0; i < state.smoke.length; i++) {
+      state.smoke[i].vx += (Math.random() - 0.5) * 40;
+      state.smoke[i].vy -= 30;
+    }
     $("hold-cue").style.opacity = "0";
+    state.lockId = null;
   }
 
   function spawnCasing() {
@@ -493,7 +509,7 @@
         vy: -12 - Math.random() * 18,
         r: 10 + Math.random() * 14,
         age: 0,
-        life: 0.7 + Math.random() * 0.5,
+        life: 1.35 + Math.random() * 0.45,
       });
     }
   }
@@ -522,7 +538,7 @@
     state.hitstop = head ? 0.12 : 0.1;
     state.shake = 16;
     audio.thud();
-    rumblePat(head ? [8, 20, 40] : [10, 16, 28]);
+    rumblePat(head ? [6, 18, 8, 40, 50] : [8, 14, 10, 32, 36]);
     burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 22 : 16, 240);
     if (e.hp <= 0) {
       e.dead = true;
@@ -534,12 +550,12 @@
       const pay = 120 + bounces * 160 + (head ? 220 : 0) + (chainIndex > 0 ? 280 : 0);
       state.score += pay;
       $("scoreEl").textContent = fmt(state.score);
-      stamp(style);
+      state.pendingStamp = { text: style, t: 0.28 };
       state.camFocus = e;
-      state.camHold = 0.38;
+      state.camHold = 0.78;
       return true;
     }
-    stamp(head ? "GRAZE THE HAT" : "HE'S STILL UP");
+    state.pendingStamp = { text: head ? "GRAZE THE HAT" : "HE'S STILL UP", t: 0.18 };
     return false;
   }
 
@@ -782,10 +798,13 @@
 
     let targetScale = 1;
     if (state.mode === "fight") {
-      if (state.aiming) targetScale = 0.055;
-      else if (state.bullet) targetScale = 0.14;
+      if (state.aiming) {
+        state.aimWarm += dt;
+        targetScale = state.aimWarm < 0.15 ? 0.42 : 0.052;
+      } else if (state.bullet) targetScale = 0.14;
     }
-    state.timeScale += (targetScale - state.timeScale) * Math.min(1, dt * 7);
+    const rising = targetScale > state.timeScale;
+    state.timeScale += (targetScale - state.timeScale) * Math.min(1, dt * (rising ? 4.2 : 16));
     $("bt-veil").classList.toggle("on", state.timeScale < 0.55);
     audio.setTension(state.timeScale < 0.55 ? 1 : 0);
 
@@ -808,6 +827,14 @@
       state.ghost.t -= dt;
       if (state.ghost.t <= 0) state.ghost = null;
     }
+    if (state.pendingStamp) {
+      state.pendingStamp.t -= dt;
+      if (state.pendingStamp.t <= 0) {
+        stamp(state.pendingStamp.text);
+        state.pendingStamp = 0;
+      }
+    }
+    if (state.cylKick > 0) state.cylKick = Math.max(0, state.cylKick - dt * 3.2);
 
     state.shake *= Math.pow(0.04, dt);
     updateStreet(wdt);
@@ -887,6 +914,12 @@
       const tr = currentTrace();
       state.preview = tr;
       const lethal = tr.end && tr.end.body && tr.end.body.tag;
+      const lockId = lethal && tr.end.body.ent ? tr.end.body.ent.id : null;
+      if (lockId && lockId !== state.lockId) {
+        audio.lock();
+        rumblePat([3, 14, 5]);
+      }
+      state.lockId = lockId;
       const cue = $("hold-cue");
       cue.textContent = lethal ? (tr.bounces ? "BOUNCE WILL HIT" : "WILL HIT") : "DRAG TO AIM";
       cue.style.opacity = "0.9";
@@ -917,10 +950,11 @@
         if (ev.dist > prev && ev.dist <= b.dist + 0.01) {
           if (ev.kind === "bounce") {
             audio.ping(ev.bounce);
-            rumblePat([6, 18, 14]);
+            rumblePat([4, 22, 8]);
             burst(ev.hit.x, ev.hit.y, "#f4e0a8", 20, 300);
+            state.hitstop = 0.14;
             state.shake = 8;
-            state.cam.roll += ev.hit.nx > 0 ? 0.06 : -0.06;
+            state.cam.roll += ev.hit.nx > 0 ? 0.07 : -0.07;
             if (ev.hit.body && ev.hit.body.ent && ev.hit.body.ent.type === "pan") {
               ev.hit.body.ent.spinV += 12;
             }
@@ -928,7 +962,13 @@
             const died = applyKill(ev.hit, b.bounces, b.kills);
             if (died) b.kills += 1;
           } else if (ev.kind === "absorb") {
-            burst(ev.hit.x, ev.hit.y, "#c4a574", 10, 90);
+            audio.wood();
+            rumblePat([18, 12, 10]);
+            burst(ev.hit.x, ev.hit.y, "#c4a574", 16, 140);
+            if (ev.hit.body && ev.hit.body.ent) {
+              ev.hit.body.ent.hurt = 0.22;
+              ev.hit.body.ent.lean = (ev.hit.body.ent.lean || 0) + 0.1;
+            }
           }
         }
       }
@@ -942,7 +982,7 @@
         }
         state.bullet = null;
         if (living().length === 0) {
-          setTimeout(sceneClear, 480);
+          setTimeout(sceneClear, 820);
         } else if (state.ammo <= 0) {
           startReload();
         }
@@ -1296,7 +1336,9 @@
     if (e.dead && images[e.species + "Dead"]) {
       const w = 190 * d;
       const h = (img.height / img.width) * w;
-      ctx.globalAlpha = 1 - Math.min(0.25, e.fall * 0.2);
+      const squash = Math.min(1, e.fall);
+      ctx.scale(1 + squash * 0.16, 1 - squash * 0.1);
+      ctx.globalAlpha = 1 - Math.min(0.22, e.fall * 0.18);
       ctx.drawImage(img, -w / 2, -h * 0.72, w, h);
     } else {
       const h = 236 * d * (e.hidden ? 0.9 : 1);
@@ -1358,7 +1400,7 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.translate(e.x, e.y);
-    ctx.rotate(e.spin || 0);
+    ctx.rotate((e.spin || 0) + (e.lean || 0));
     if (e.hurt > 0) ctx.translate((Math.random() - 0.5) * 3, 0);
     if (img) {
       const w = (img.width / img.height) * h;
@@ -1631,10 +1673,10 @@
       cctx.lineWidth = 2;
       cctx.stroke();
     }
-    if (state.reloading > 0) {
+    if (state.reloading > 0 || state.cylKick > 0) {
       cctx.save();
       cctx.translate(cx, cy);
-      cctx.rotate((1.15 - state.reloading) * 8);
+      cctx.rotate(state.reloading > 0 ? (1.15 - state.reloading) * 8 : state.cylKick * 1.1);
       cctx.strokeStyle = "#e8c36a";
       cctx.beginPath();
       cctx.moveTo(0, -20);
@@ -1698,9 +1740,10 @@
     state.cam.z = 1;
     state.cam.roll = 0;
     state.aiming = true;
+    state.aimWarm = 0;
     audio.unlock();
     audio.cock();
-    rumble(8);
+    rumblePat([5, 10, 4]);
     state.aim.x = clamp(w.x, 20, 700);
     state.aim.y = clamp(w.y, 20, 1120);
     $("hold-cue").style.opacity = "0";

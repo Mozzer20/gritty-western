@@ -1,4 +1,4 @@
-const CACHE = "gritty-western-v10";
+const CACHE = "gritty-western-v11";
 const ASSETS = [
   "./",
   "./index.html",

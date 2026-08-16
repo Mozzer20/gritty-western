@@ -21,6 +21,7 @@
       this.muted = false;
       this._theme = 0;
       this._wind = null;
+      this._heartT = 0;
     }
 
     unlock() {
@@ -53,11 +54,20 @@
       this._wind.f.frequency.setTargetAtTime(on ? 140 : 380, this.ctx.currentTime, 0.12);
     }
 
+    stopHeart() {
+      if (this._heartT) {
+        clearTimeout(this._heartT);
+        this._heartT = 0;
+      }
+    }
+
     heartbeat() {
-      this.tone(48, 0.09, "sine", 0.08, 28);
+      this.stopHeart();
+      this.tone(48, 0.09, "sine", 0.08, 28, 1);
       const later = this;
-      setTimeout(function () {
-        later.tone(40, 0.12, "sine", 0.05, 24);
+      this._heartT = setTimeout(function () {
+        later._heartT = 0;
+        later.tone(40, 0.12, "sine", 0.05, 24, 1);
       }, 160);
     }
 
@@ -87,7 +97,19 @@
       this._wind = { src, g, f };
     }
 
-    noise(dur, peak, hp, lp) {
+    _out(near) {
+      const n = near == null ? 1 : near;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 900 + 13000 * n;
+      const g = this.ctx.createGain();
+      g.gain.value = 0.38 + 0.62 * n;
+      lp.connect(g);
+      g.connect(this.master);
+      return lp;
+    }
+
+    noise(dur, peak, hp, lp, near) {
       if (!this.ctx || this.muted) return;
       const n = Math.max(32, this.ctx.sampleRate * dur);
       const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
@@ -112,11 +134,11 @@
       }
       const e = env(this.ctx, 0.002, 0.025, 0.2, dur, peak);
       node.connect(e);
-      e.connect(this.master);
+      e.connect(this._out(near));
       src.start();
     }
 
-    tone(freq, dur, type, peak, slide) {
+    tone(freq, dur, type, peak, slide, near) {
       if (!this.ctx || this.muted) return;
       const o = this.ctx.createOscillator();
       o.type = type || "sine";
@@ -124,25 +146,35 @@
       if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), this.ctx.currentTime + dur);
       const e = env(this.ctx, 0.008, dur * 0.22, 0.28, dur * 0.72, peak || 0.12);
       o.connect(e);
-      e.connect(this.master);
+      e.connect(this._out(near));
       o.start();
       o.stop(this.ctx.currentTime + dur + 0.05);
     }
 
     gunshot() {
-      this.noise(0.28, 0.7, 90, 1800);
-      this.noise(0.08, 0.45, 1800, 10000);
-      this.noise(0.05, 0.22, 4000, 14000);
-      this.tone(62, 0.32, "sine", 0.38, 28);
-      this.tone(148, 0.14, "triangle", 0.12, 55);
-      this.tone(320, 0.05, "square", 0.04, 80);
+      this.noise(0.28, 0.7, 90, 1800, 1);
+      this.noise(0.08, 0.45, 1800, 10000, 1);
+      this.noise(0.05, 0.22, 4000, 14000, 1);
+      this.tone(62, 0.32, "sine", 0.38, 28, 1);
+      this.tone(148, 0.14, "triangle", 0.12, 55, 1);
+      this.tone(320, 0.05, "square", 0.04, 80, 1);
     }
 
     ping(bounce) {
       const f = 1540 + bounce * 260;
-      this.tone(f, 0.2, "sine", 0.2, f * 0.48);
-      this.tone(f * 2.03, 0.08, "triangle", 0.06, f * 0.9);
-      this.noise(0.045, 0.1, 2800, 11000);
+      this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42);
+      this.tone(f * 2.03, 0.09, "triangle", 0.05, f * 0.9, 0.42);
+      this.noise(0.05, 0.08, 2800, 11000, 0.4);
+    }
+
+    lock() {
+      this.tone(880, 0.035, "sine", 0.05, 640, 1);
+      this.noise(0.018, 0.06, 2000, 7000, 1);
+    }
+
+    wood() {
+      this.noise(0.12, 0.22, 80, 700, 0.55);
+      this.tone(110, 0.14, "triangle", 0.08, 50, 0.55);
     }
 
     cock() {
@@ -176,9 +208,9 @@
     }
 
     thud() {
-      this.tone(58, 0.34, "sine", 0.28, 24);
-      this.tone(92, 0.18, "triangle", 0.08, 40);
-      this.noise(0.2, 0.2, 60, 420);
+      this.tone(58, 0.34, "sine", 0.24, 24, 0.62);
+      this.tone(92, 0.18, "triangle", 0.07, 40, 0.62);
+      this.noise(0.2, 0.16, 60, 420, 0.58);
     }
 
     hurt() {
