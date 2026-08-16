@@ -1027,6 +1027,9 @@
     }
 
     audio.tickTheme(dt, state.mode === "title");
+    const L = GW.LEVELS[state.level];
+    const openStreet = state.mode === "fight" && L && L.bg !== "saloon";
+    audio.tickGust(dt, openStreet);
   }
 
   function startReload() {

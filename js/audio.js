@@ -22,6 +22,9 @@
       this._theme = 0;
       this._wind = null;
       this._heartT = 0;
+      this._gustT = 8;
+      this._gustOn = false;
+      this._gustArmed = false;
       this._banks = {
         ugh: {
           paths: ["assets/sfx/ugh.wav", "assets/sfx/ugh-2.wav", "assets/sfx/ugh-3.wav"],
@@ -72,6 +75,12 @@
         },
         barrel: {
           paths: ["assets/sfx/barrel-1.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
+        wind: {
+          paths: ["assets/sfx/wind-1.wav"],
           raw: [],
           bufs: [],
           last: -1,
@@ -431,6 +440,51 @@
       } else {
         this.tone(174, 0.45, "sine", 0.14, 70);
         this.noise(0.2, 0.12, 120, 400);
+      }
+    }
+
+    playGust() {
+      if (!this.ctx || this.muted || this._gustOn) return false;
+      const ready = this._banks.wind.bufs.filter(function (b) {
+        return !!b;
+      });
+      if (!ready.length) return false;
+      this._gustOn = true;
+      const src = this.ctx.createBufferSource();
+      src.buffer = ready[Math.floor(Math.random() * ready.length)];
+      src.playbackRate.value = 0.92 + Math.random() * 0.12;
+      const g = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      const dur = Math.max(0.6, src.buffer.duration / src.playbackRate.value);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.26, now + Math.min(0.4, dur * 0.25));
+      g.gain.setValueAtTime(0.26, now + Math.max(0.45, dur - 0.4));
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      src.connect(g);
+      g.connect(this._out(0.28));
+      const later = this;
+      src.onended = function () {
+        later._gustOn = false;
+      };
+      src.start();
+      return true;
+    }
+
+    tickGust(dt, onStreet) {
+      if (!onStreet) {
+        this._gustArmed = false;
+        this._gustT = 7 + Math.random() * 6;
+        return;
+      }
+      if (!this._gustArmed) {
+        this._gustArmed = true;
+        this._gustT = 6 + Math.random() * 7;
+      }
+      if (!this.ctx || this.muted) return;
+      this._gustT -= dt;
+      if (this._gustT <= 0) {
+        this.playGust();
+        this._gustT = 16 + Math.random() * 14;
       }
     }
 
