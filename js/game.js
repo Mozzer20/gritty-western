@@ -948,12 +948,27 @@
 
   function clientToWorld(cx, cy) {
     const r = canvas.getBoundingClientRect();
-    let x = (cx - r.left - state.view.cssOx) / state.view.cssScale;
-    let y = (cy - r.top - state.view.cssOy) / state.view.cssScale;
-    const cam = state.cam;
-    x = cam.x + (x - VW / 2) / cam.z;
-    y = cam.y + (y - VH / 2) / cam.z;
-    return { x, y };
+    const x = (cx - r.left - state.view.cssOx) / state.view.cssScale;
+    const y = (cy - r.top - state.view.cssOy) / state.view.cssScale;
+    const c = state.cam;
+    const z = c.z || 1;
+    let lx = (x - VW / 2) / z;
+    let ly = (y - VH / 2) / z;
+    const cr = Math.cos(-c.roll);
+    const sr = Math.sin(-c.roll);
+    return { x: c.x + lx * cr - ly * sr, y: c.y + lx * sr + ly * cr };
+  }
+
+  function gunPivot() {
+    return { x: 360, y: VH - 8 + (state.aiming ? 10 : 0) };
+  }
+
+  function barrelTip() {
+    const p = gunPivot();
+    const ang = Math.atan2(state.aim.y - p.y, state.aim.x - p.x);
+    const tilt = (ang + Math.PI / 2) * 0.55 - (state.aiming ? 0.09 : 0);
+    const len = 198;
+    return { x: p.x + Math.sin(tilt) * len, y: p.y - Math.cos(tilt) * len };
   }
 
   function drawSprite(img, x, y, h, ang, flip) {
@@ -1037,40 +1052,21 @@
       else drawProp(e);
     }
     if (state.mode === "fight" && state.aiming) drawMetalGlow();
-    if (state.mode === "fight" && state.aiming) drawPath(false);
-    if (state.ghost) drawGhost();
-    if (state.mode === "fight" && state.bullet) drawFlightRibbon();
-
-    if (
-      state.mode === "fight" &&
-      state.aiming &&
-      state.preview &&
-      state.preview.end &&
-      state.preview.end.body &&
-      state.preview.end.body.ent
-    ) {
-      const t = state.preview.end.body.ent;
-      if (t.type === "enemy" && !t.dead && !t.hidden) {
-        ctx.save();
-        ctx.strokeStyle = "rgba(232, 195, 106, 0.85)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(t.x, t.y - 110 * (t.s || 1), 52, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
     drawCasings();
     drawHats();
     drawSmoke();
-    drawBullet();
     drawParticles();
-    if (state.muzzleFlash > 0) drawMuzzleFlash();
     if (!state.bullet && state.camHold <= 0) drawGun();
     drawEnemyMeters();
     drawNearGrit();
     drawGrade(L.bg);
+    // Gold thread + slug sit above the grade so darker streets don't swallow them.
+    if (state.mode === "fight" && state.aiming) drawPath();
+    if (state.ghost) drawGhost();
+    if (state.mode === "fight" && state.bullet) drawFlightRibbon();
+    drawLockRing();
+    drawBullet();
+    if (state.muzzleFlash > 0) drawMuzzleFlash();
 
     ctx.strokeStyle = "rgba(232, 195, 106, 0.12)";
     ctx.lineWidth = 2;
@@ -1093,11 +1089,11 @@
       if (e.dead) drawShadow(e.x, e.y + 8, 48 * d, 12 * d, 0.28);
       else drawShadow(e.x, e.y + 4, 28 * d, 9 * d, e.hidden ? 0.16 : 0.32);
     } else if (e.type === "pan") {
-      drawShadow(e.x, e.y + 36 * d, 22 * d, 7 * d, 0.2);
+      drawShadow(e.x, e.y + 18 * d, 22 * d, 7 * d, 0.2);
     } else if (e.type === "barrel") {
-      drawShadow(e.x, e.y + 52 * d, 36 * d, 12 * d, 0.3);
+      drawShadow(e.x, e.y + 28 * d, 36 * d, 12 * d, 0.3);
     } else if (e.type === "crate") {
-      drawShadow(e.x, e.y + 48 * d, 40 * d, 13 * d, 0.3);
+      drawShadow(e.x, e.y + 26 * d, 40 * d, 13 * d, 0.3);
     } else if (e.type === "sign") {
       drawShadow(e.x, e.y + (e.h || 200) * 0.35, 16 * d, 6 * d, 0.18);
     }
@@ -1129,11 +1125,11 @@
     const ny = (VH / 2 - state.cam.y) * 0.1;
     ctx.save();
     ctx.translate(nx, ny);
-    const g = ctx.createLinearGradient(0, VH * 0.78, 0, VH);
+    const g = ctx.createLinearGradient(0, VH * 0.9, 0, VH);
     g.addColorStop(0, "rgba(40,22,10,0)");
-    g.addColorStop(1, "rgba(20,10,6,0.28)");
+    g.addColorStop(1, "rgba(20,10,6,0.16)");
     ctx.fillStyle = g;
-    ctx.fillRect(-40, VH * 0.78, VW + 80, VH * 0.28);
+    ctx.fillRect(-40, VH * 0.9, VW + 80, VH * 0.14);
     ctx.restore();
   }
 
@@ -1208,8 +1204,9 @@
 
   function drawMuzzleFlash() {
     const t = state.muzzleFlash / 0.1;
-    const x = state.muzzle.x;
-    const y = state.muzzle.y - 28;
+    const tip = barrelTip();
+    const x = tip.x;
+    const y = tip.y;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = t;
@@ -1296,17 +1293,17 @@
     const d = depthScale(e.y);
     const h = (e.type === "pan" ? 92 * e.s : e.type === "sign" ? (e.h || 200) * 0.72 : 130 * e.s) * d;
     ctx.save();
-    ctx.translate(e.x, e.y + (e.type === "pan" ? 0 : h * 0.42));
+    ctx.translate(e.x, e.y);
     ctx.rotate(e.spin || 0);
     if (e.hurt > 0) ctx.translate((Math.random() - 0.5) * 3, 0);
     if (img) {
       const w = (img.width / img.height) * h;
-      ctx.drawImage(img, -w / 2, -h, w, h);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
     } else {
       ctx.fillStyle = e.type === "pan" ? "#2a2a2a" : e.type === "sign" ? "#8a8a86" : "#6a4a28";
       ctx.beginPath();
-      if (e.type === "pan") ctx.arc(0, -h * 0.45, h * 0.38, 0, Math.PI * 2);
-      else ctx.fillRect(-h * 0.4, -h, h * 0.8, h);
+      if (e.type === "pan") ctx.arc(0, 0, h * 0.38, 0, Math.PI * 2);
+      else ctx.fillRect(-h * 0.4, -h * 0.5, h * 0.8, h);
       ctx.fill();
     }
     ctx.restore();
@@ -1314,25 +1311,24 @@
 
   function clipPreview(pts) {
     const mode = previewMode();
-    if (mode === "full") return pts;
+    if (mode === "full") return { bright: pts, faint: [] };
     if (mode === "first") {
-      const out = [];
+      const bright = [];
       for (const p of pts) {
-        out.push(p);
+        bright.push(p);
         if (p.bounce >= 1 && p.hit) break;
       }
-      return out.length ? out : pts.slice(0, 8);
+      return { bright: bright.length ? bright : pts.slice(0, 8), faint: pts };
     }
-    // deadeye: muzzle stub only
     const stub = [];
     let acc = 0;
     stub.push(pts[0]);
     for (let i = 1; i < pts.length; i++) {
       acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
       stub.push(pts[i]);
-      if (acc > 90) break;
+      if (acc > 140) break;
     }
-    return stub;
+    return { bright: stub, faint: [] };
   }
 
   function strokePoly(pts, alpha) {
@@ -1370,10 +1366,17 @@
 
   function drawPath() {
     const trace = state.preview || currentTrace();
-    const pts = clipPreview(densify(trace.path, 14));
-    strokePoly(pts, 1);
+    const all = densify(trace.path, 14);
+    if (all.length < 2) return;
+    const tip = barrelTip();
+    const parts = clipPreview(all);
+    const bright = [{ x: tip.x, y: tip.y, bounce: 0, hit: null }].concat(parts.bright);
+    if (parts.faint && parts.faint.length > 2 && previewMode() === "first") {
+      strokePoly(parts.faint, 0.22);
+    }
+    strokePoly(bright, 1);
     if (previewMode() !== "deadeye") {
-      for (const p of pts) {
+      for (const p of parts.bright) {
         if (p.hit && p.hit.material && P.MATERIALS[p.hit.material] && P.MATERIALS[p.hit.material].spark) {
           ctx.fillStyle = "#fff4c8";
           ctx.beginPath();
@@ -1382,6 +1385,28 @@
         }
       }
     }
+  }
+
+  function drawLockRing() {
+    if (
+      state.mode !== "fight" ||
+      !state.aiming ||
+      !state.preview ||
+      !state.preview.end ||
+      !state.preview.end.body ||
+      !state.preview.end.body.ent
+    ) {
+      return;
+    }
+    const t = state.preview.end.body.ent;
+    if (t.type !== "enemy" || t.dead || t.hidden) return;
+    ctx.save();
+    ctx.strokeStyle = "rgba(232, 195, 106, 0.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y - 110 * (t.s || 1), 52, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawGhost() {
@@ -1567,6 +1592,10 @@
       } catch (err) {}
     }
     const w = clientToWorld(t.clientX, t.clientY);
+    state.cam.x = VW / 2;
+    state.cam.y = VH / 2;
+    state.cam.z = 1;
+    state.cam.roll = 0;
     state.aiming = true;
     state.aim.x = clamp(w.x, 20, 700);
     state.aim.y = clamp(w.y, 20, 1120);
