@@ -22,7 +22,6 @@
     canyon: "assets/art/bg-canyon.jpg",
     depot: "assets/art/bg-depot.jpg",
     gallows: "assets/art/bg-gallows.jpg",
-    player: "assets/characters/player-idle.png",
     revolver: "assets/characters/revolver.png",
     outlaw: "assets/characters/outlaw.png",
     outlawDraw: "assets/characters/outlaw-draw.png",
@@ -1897,7 +1896,6 @@
     fit();
     loadImages().then(() => {
       state.ready = true;
-      if (images.player) $("portrait").src = IMG.player;
       const q = new URLSearchParams(location.search);
       if (q.has("play")) {
         audio.unlock();
