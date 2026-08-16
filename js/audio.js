@@ -90,6 +90,12 @@
           bufs: [],
           last: -1,
         },
+        reload: {
+          paths: ["assets/sfx/reload-1.mp3"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -345,11 +351,15 @@
     }
 
     click() {
+      const rate = 0.98 + Math.random() * 0.04;
+      if (this._playBank("reload", rate, 0.9)) return;
       this.noise(0.028, 0.13, 1400, 6000);
       this.tone(480, 0.035, "square", 0.045);
     }
 
     reload() {
+      const rate = 0.96 + Math.random() * 0.05;
+      if (this._playBank("reload", rate, 0.95)) return;
       this.click();
       const later = this;
       setTimeout(function () {

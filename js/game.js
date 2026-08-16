@@ -99,6 +99,7 @@
     replay: false,
     stash: null,
     installPrompt: null,
+    coached: false,
   };
 
   function loadSave() {
@@ -108,6 +109,7 @@
       state.unlocked = s.unlocked || 0;
       state.stars = Array.isArray(s.stars) ? s.stars : [];
       if (s.run && typeof s.run.level === "number") state.run = s.run;
+      state.coached = !!(s.coached || (s.unlocked || 0) > 0);
     } catch (e) {
       state.stars = [];
     }
@@ -131,6 +133,7 @@
           unlocked: state.unlocked,
           stars: state.stars,
           run: state.run,
+          coached: state.coached,
         })
       );
     } catch (e) {}
@@ -328,8 +331,8 @@
     $("hint").textContent = L.hint;
     $("hint").classList.add("show");
     $("hold-cue").textContent = "TAP AND HOLD";
-    $("hold-cue").style.opacity = "0.75";
-    showCoach(true);
+    $("hold-cue").style.opacity = needsCoach() ? "0.75" : "0.35";
+    showCoach(needsCoach());
     $("scoreEl").textContent = fmt(state.score);
     renderHearts();
   }
@@ -806,6 +809,16 @@
 
   function closeMenu() {
     setMenuOpen(false);
+  }
+
+  function needsCoach() {
+    return !state.coached && !state.replay && state.level === 0;
+  }
+
+  function markCoached() {
+    if (state.coached) return;
+    state.coached = true;
+    save();
   }
 
   function showCoach(on) {
@@ -1911,6 +1924,7 @@
     state.cam.roll = 0;
     state.aiming = true;
     state.aimWarm = 0;
+    markCoached();
     showCoach(false);
     audio.unlock();
     audio.cock();
@@ -2066,7 +2080,7 @@
     });
     $("btn-how-close").addEventListener("click", () => {
       $("overlay-how").hidden = true;
-      if (state.mode === "fight" && !state.aiming && !state.bullet) showCoach(true);
+      if (state.mode === "fight" && !state.aiming && !state.bullet) showCoach(needsCoach());
     });
     $("btn-mute").addEventListener("click", () => {
       audio.unlock();
@@ -2085,6 +2099,7 @@
         e.preventDefault();
         if (!state.aiming && !state.bullet) {
           state.aiming = true;
+          markCoached();
           showCoach(false);
         }
       }
