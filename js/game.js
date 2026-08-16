@@ -95,6 +95,9 @@
     view: { scale: 1, ox: 0, oy: 0, cssScale: 1, cssOx: 0, cssOy: 0 },
     muted: false,
     ready: false,
+    run: null,
+    replay: false,
+    stash: null,
   };
 
   function loadSave() {
@@ -103,11 +106,18 @@
       state.best = s.best || 0;
       state.unlocked = s.unlocked || 0;
       state.stars = Array.isArray(s.stars) ? s.stars : [];
+      if (s.run && typeof s.run.level === "number") state.run = s.run;
     } catch (e) {
       state.stars = [];
     }
     while (state.stars.length < GW.LEVELS.length) state.stars.push(0);
     $("bestEl").textContent = fmt(state.best);
+    if (state.run) {
+      state.lives = Math.max(1, state.run.lives || 3);
+      state.score = state.run.score || 0;
+      $("scoreEl").textContent = fmt(state.score);
+      renderHearts();
+    }
     paintTitle();
   }
 
@@ -119,9 +129,68 @@
           best: state.best,
           unlocked: state.unlocked,
           stars: state.stars,
+          run: state.run,
         })
       );
     } catch (e) {}
+  }
+
+  function hasRun() {
+    return !!(state.run && state.run.lives > 0 && typeof state.run.level === "number");
+  }
+
+  function snapshotRun() {
+    if (state.replay) return;
+    if (state.lives <= 0) state.run = null;
+    else state.run = { lives: state.lives, score: state.score, level: state.level };
+    save();
+  }
+
+  function endReplay() {
+    if (!state.replay) return;
+    state.replay = false;
+    if (state.stash) {
+      state.lives = state.stash.lives;
+      state.score = state.stash.score;
+      state.level = state.stash.level;
+      state.stash = null;
+    } else if (state.run) {
+      state.lives = state.run.lives;
+      state.score = state.run.score;
+      state.level = state.run.level;
+    }
+    $("scoreEl").textContent = fmt(state.score);
+    renderHearts();
+  }
+
+  function startReplay(i) {
+    audio.unlock();
+    state.stash = hasRun()
+      ? { lives: state.run.lives, score: state.run.score, level: state.run.level }
+      : { lives: state.lives, score: state.score, level: state.level };
+    state.replay = true;
+    state.lives = 3;
+    state.score = 0;
+    $("scoreEl").textContent = "0";
+    renderHearts();
+    showBrief(i);
+  }
+
+  function isIosDevice() {
+    const ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function isStandaloneApp() {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true
+    );
+  }
+
+  function paintInstall() {
+    const el = $("install-help");
+    if (!el) return;
+    el.hidden = !(isIosDevice() && !isStandaloneApp());
   }
 
   function fmt(n) {
@@ -592,8 +661,12 @@
     state.score += bonus + chainBonus;
     const rank = rankForScene();
     state.stars[state.level] = Math.max(state.stars[state.level] || 0, rank);
-    if (state.score > state.best) state.best = state.score;
-    state.unlocked = Math.max(state.unlocked, state.level + 1);
+    if (!state.replay) {
+      if (state.score > state.best) state.best = state.score;
+      state.unlocked = Math.max(state.unlocked, state.level + 1);
+      const last = state.level >= GW.LEVELS.length - 1;
+      state.run = last ? null : { lives: state.lives, score: state.score, level: state.level + 1 };
+    }
     save();
     $("bestEl").textContent = fmt(state.best);
     $("scoreEl").textContent = fmt(state.score);
@@ -612,10 +685,19 @@
       ".";
     const last = state.level >= GW.LEVELS.length - 1;
     $("btn-next").hidden = false;
-    $("btn-next").textContent = last ? "PLAY AGAIN" : "NEXT STREET";
-    if (last) {
-      $("end-kicker").textContent = "RED DUST COUNTY";
-      $("end-name").textContent = "THE END";
+    $("btn-retry").textContent = "PLAY AGAIN";
+    if (state.replay) {
+      $("end-kicker").textContent = "REPLAY CLEAR";
+      $("end-detail").textContent =
+        (state.sceneShots === 1 ? "One slug. " : state.sceneShots + " shots. ") +
+        "Stars saved. Your run is still going.";
+      $("btn-next").textContent = "BACK TO TITLE";
+    } else {
+      $("btn-next").textContent = last ? "PLAY AGAIN" : "NEXT STREET";
+      if (last) {
+        $("end-kicker").textContent = "RED DUST COUNTY";
+        $("end-name").textContent = "THE END";
+      }
     }
     $("overlay-end").hidden = false;
     paintTitle();
@@ -633,19 +715,32 @@
     if (state.lives <= 0) {
       audio.sting(false);
       state.mode = "end";
-      if (state.score > state.best) {
-        state.best = state.score;
+      if (state.replay) {
+        $("end-kicker").textContent = "THEY DREW";
+        $("end-name").textContent = GW.LEVELS[state.level].name;
+        $("end-stars").textContent = "";
+        $("end-detail").textContent = "Your run is still going.";
+        $("btn-next").hidden = false;
+        $("btn-next").textContent = "BACK TO TITLE";
+        $("btn-retry").textContent = "TRY AGAIN";
+      } else {
+        if (state.score > state.best) {
+          state.best = state.score;
+          $("bestEl").textContent = fmt(state.best);
+        }
+        state.run = null;
         save();
-        $("bestEl").textContent = fmt(state.best);
+        $("end-kicker").textContent = "DEAD IN THE DUST";
+        $("end-name").textContent = "GAME OVER";
+        $("end-stars").textContent = "";
+        $("end-detail").textContent = "Score " + fmt(state.score) + ".";
+        $("btn-next").hidden = true;
+        $("btn-retry").textContent = "PLAY AGAIN";
       }
-      $("end-kicker").textContent = "DEAD IN THE DUST";
-      $("end-name").textContent = "GAME OVER";
-      $("end-stars").textContent = "";
-      $("end-detail").textContent = "Score " + fmt(state.score) + ".";
-      $("btn-next").hidden = true;
       $("overlay-end").hidden = false;
       paintTitle();
     } else {
+      if (!state.replay) snapshotRun();
       buildLevel(state.level);
       state.mode = "fight";
     }
@@ -657,7 +752,10 @@
     $("brief-chapter").textContent = L.chapter;
     $("brief-numeral").textContent = L.numeral;
     $("brief-name").textContent = L.name;
-    $("brief-hint").textContent = L.hint;
+    $("brief-hint").textContent = state.replay
+      ? "Replay this street. Your campaign score and lives stay as they were."
+      : L.hint;
+    $("btn-brief").textContent = state.replay ? "REPLAY THIS STREET" : "PLAY THIS STREET";
     $("overlay-brief").hidden = false;
     $("overlay-title").hidden = true;
     $("overlay-end").hidden = true;
@@ -689,6 +787,7 @@
   }
 
   function goHome() {
+    const from = state.mode;
     state.mode = "title";
     state.aiming = false;
     state.bullet = null;
@@ -705,6 +804,8 @@
     $("hold-cue").style.opacity = "0";
     showCoach(false);
     showHomeBtn(false);
+    if (state.replay) endReplay();
+    else if ((from === "fight" || from === "brief") && state.lives > 0) snapshotRun();
     paintTitle();
   }
 
@@ -715,25 +816,33 @@
     if (!start) return;
     const help = $("start-help");
     const newHelp = $("new-help");
-    if (state.unlocked > 0) {
-      const done = state.unlocked >= GW.LEVELS.length;
-      start.textContent = done ? "PLAY AGAIN" : "CONTINUE";
+    const stripHelp = $("strip-help");
+    const done = state.unlocked >= GW.LEVELS.length;
+    if (hasRun() && !done) {
+      start.textContent = "CONTINUE";
+      const nxt = GW.LEVELS[Math.max(0, Math.min(GW.LEVELS.length - 1, state.run.level))];
       if (help) {
-        if (done) {
-          help.textContent = "You finished every street. Play from the first one again.";
-        } else {
-          const nxt = GW.LEVELS[continueLevel()];
-          help.textContent = "Pick up at " + nxt.numeral + " · " + nxt.name + ".";
-        }
+        help.textContent =
+          "Pick up at " + nxt.numeral + " · " + nxt.name + ". Score " + fmt(state.run.score) + ".";
       }
-      if (neu) neu.hidden = done;
-      if (newHelp) newHelp.hidden = done;
+    } else if (done) {
+      start.textContent = "PLAY AGAIN";
+      if (help) help.textContent = "You finished every street. Play from the first one again.";
+    } else if (state.unlocked > 0) {
+      start.textContent = "CONTINUE";
+      const nxt = GW.LEVELS[continueLevel()];
+      if (help) help.textContent = "Pick up at " + nxt.numeral + " · " + nxt.name + ".";
     } else {
       start.textContent = "PLAY";
       if (help) help.textContent = "Tap and hold the street to aim. Drag, then let go to shoot.";
-      if (neu) neu.hidden = true;
-      if (newHelp) newHelp.hidden = true;
     }
+    const showNew = hasRun() || (state.unlocked > 0 && !done);
+    if (neu) neu.hidden = !showNew;
+    if (newHelp) newHelp.hidden = !showNew;
+    if (stripHelp) {
+      stripHelp.textContent = state.unlocked > 0 ? "Tap a street to replay it. Your run stays." : "Your streets";
+    }
+    paintInstall();
     if (!strip) return;
     strip.innerHTML = "";
     GW.LEVELS.forEach((L, i) => {
@@ -745,12 +854,7 @@
       b.disabled = i > state.unlocked;
       b.addEventListener("click", () => {
         if (i > state.unlocked) return;
-        audio.unlock();
-        state.lives = 3;
-        state.score = 0;
-        $("scoreEl").textContent = "0";
-        renderHearts();
-        showBrief(i);
+        startReplay(i);
       });
       strip.appendChild(b);
     });
@@ -1812,11 +1916,30 @@
 
   function beginRun(at) {
     audio.unlock();
+    state.replay = false;
+    state.stash = null;
     state.lives = 3;
     state.score = 0;
+    state.run = { lives: 3, score: 0, level: at };
+    save();
     $("scoreEl").textContent = "0";
     renderHearts();
     showBrief(at);
+  }
+
+  function resumeRun() {
+    audio.unlock();
+    state.replay = false;
+    state.stash = null;
+    if (hasRun()) {
+      state.lives = state.run.lives;
+      state.score = state.run.score;
+      $("scoreEl").textContent = fmt(state.score);
+      renderHearts();
+      showBrief(state.run.level);
+      return;
+    }
+    beginRun(state.unlocked > 0 ? continueLevel() : 0);
   }
 
   function bind() {
@@ -1828,8 +1951,8 @@
     stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
     $("btn-start").addEventListener("click", () => {
-      const at = state.unlocked > 0 ? continueLevel() : 0;
-      beginRun(at);
+      if (hasRun() && state.unlocked < GW.LEVELS.length) resumeRun();
+      else beginRun(state.unlocked > 0 ? continueLevel() : 0);
     });
     $("btn-new").addEventListener("click", () => beginRun(0));
     $("btn-brief").addEventListener("click", () => {
@@ -1838,6 +1961,11 @@
     });
     $("btn-next").addEventListener("click", () => {
       $("overlay-end").hidden = true;
+      if (state.replay) {
+        endReplay();
+        goHome();
+        return;
+      }
       if (state.lives <= 0) {
         $("overlay-title").hidden = false;
         state.mode = "title";
@@ -1853,11 +1981,15 @@
     $("btn-retry").addEventListener("click", () => {
       $("overlay-end").hidden = true;
       if (state.lives <= 0) {
-        state.lives = 3;
-        state.score = 0;
-        renderHearts();
-        $("scoreEl").textContent = "0";
-        showBrief(state.level);
+        if (state.replay) {
+          state.lives = 3;
+          state.score = 0;
+          renderHearts();
+          $("scoreEl").textContent = "0";
+          showBrief(state.level);
+          return;
+        }
+        beginRun(state.level);
         return;
       }
       startFight();

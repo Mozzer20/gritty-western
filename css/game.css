@@ -400,6 +400,13 @@ canvas#sight {
 
 .help-line[hidden] { display: none !important; }
 
+.install-line {
+  margin-top: 14px;
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
 .btn {
   display: block;
   width: 100%;
