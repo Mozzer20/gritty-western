@@ -11,6 +11,8 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $("view");
   const ctx = canvas.getContext("2d");
+  const sight = $("sight");
+  const sctx = sight.getContext("2d");
   const cyl = $("cylinder");
   const cctx = cyl.getContext("2d");
 
@@ -935,6 +937,10 @@
     const h = canvas.clientHeight;
     canvas.width = Math.max(1, w * dpr);
     canvas.height = Math.max(1, h * dpr);
+    if (sight) {
+      sight.width = canvas.width;
+      sight.height = canvas.height;
+    }
     const scale = Math.min(w / VW, h / VH);
     state.view = {
       scale: scale * dpr,
@@ -1060,11 +1066,6 @@
     drawEnemyMeters();
     drawNearGrit();
     drawGrade(L.bg);
-    // Gold thread + slug sit above the grade so darker streets don't swallow them.
-    if (state.mode === "fight" && state.aiming) drawPath();
-    if (state.ghost) drawGhost();
-    if (state.mode === "fight" && state.bullet) drawFlightRibbon();
-    drawLockRing();
     drawBullet();
     if (state.muzzleFlash > 0) drawMuzzleFlash();
 
@@ -1331,57 +1332,89 @@
     return { bright: stub, faint: [] };
   }
 
-  function strokePoly(pts, alpha) {
-    if (pts.length < 2) return;
-    ctx.save();
-    ctx.lineWidth = 2.2;
-    ctx.setLineDash([6, 8]);
-    ctx.lineCap = "round";
-    ctx.globalAlpha = alpha;
-    let bounce = 0;
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) {
-      if (pts[i].bounce !== bounce) {
-        ctx.strokeStyle = bounce ? "rgba(244, 210, 130, 0.9)" : "rgba(232, 195, 106, 0.8)";
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
-        bounce = pts[i].bounce;
-      }
-      ctx.lineTo(pts[i].x, pts[i].y);
-    }
-    ctx.strokeStyle = bounce ? "rgba(255, 236, 180, 0.95)" : "rgba(232, 195, 106, 0.85)";
-    ctx.stroke();
-    ctx.setLineDash([]);
+  function strokePoly(c, pts, alpha) {
+    if (!pts || pts.length < 2) return;
+    c.save();
+    c.globalAlpha = alpha;
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    const trace = function () {
+      c.beginPath();
+      c.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
+    };
+    trace();
+    c.strokeStyle = "rgba(255, 196, 70, 0.4)";
+    c.lineWidth = 11;
+    c.setLineDash([]);
+    c.stroke();
+    trace();
+    c.strokeStyle = "#ffe7a0";
+    c.lineWidth = 4;
+    c.setLineDash([11, 8]);
+    c.stroke();
+    c.setLineDash([]);
     const last = pts[pts.length - 1];
-    ctx.beginPath();
-    ctx.moveTo(last.x - 7, last.y);
-    ctx.lineTo(last.x + 7, last.y);
-    ctx.moveTo(last.x, last.y - 7);
-    ctx.lineTo(last.x, last.y + 7);
-    ctx.stroke();
-    ctx.restore();
+    c.strokeStyle = "#fff6c4";
+    c.lineWidth = 2.4;
+    c.beginPath();
+    c.moveTo(last.x - 9, last.y);
+    c.lineTo(last.x + 9, last.y);
+    c.moveTo(last.x, last.y - 9);
+    c.lineTo(last.x, last.y + 9);
+    c.stroke();
+    c.restore();
   }
 
-  function drawPath() {
+  function drawPath(c) {
     const trace = state.preview || currentTrace();
+    if (!trace || !trace.path) return;
     const all = densify(trace.path, 14);
     if (all.length < 2) return;
     const tip = barrelTip();
     const parts = clipPreview(all);
-    const bright = [{ x: tip.x, y: tip.y, bounce: 0, hit: null }].concat(parts.bright);
+    const bright = [{ x: tip.x, y: tip.y }].concat(parts.bright);
     if (parts.faint && parts.faint.length > 2 && previewMode() === "first") {
-      strokePoly(parts.faint, 0.22);
+      strokePoly(c, parts.faint, 0.28);
     }
-    strokePoly(bright, 1);
+    strokePoly(c, bright, 1);
     if (previewMode() !== "deadeye") {
       for (const p of parts.bright) {
         if (p.hit && p.hit.material && P.MATERIALS[p.hit.material] && P.MATERIALS[p.hit.material].spark) {
-          ctx.fillStyle = "#fff4c8";
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 4.2, 0, Math.PI * 2);
-          ctx.fill();
+          c.fillStyle = "#fff4c8";
+          c.beginPath();
+          c.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+    }
+  }
+
+  function drawSight() {
+    if (!sctx || !sight) return;
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, sight.width, sight.height);
+    if (state.mode !== "fight") return;
+    const v = state.view;
+    const cam = state.cam;
+    sctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
+    sctx.translate(VW / 2, VH / 2);
+    sctx.rotate(cam.roll);
+    sctx.scale(cam.z, cam.z);
+    sctx.translate(-cam.x, -cam.y);
+    if (state.aiming) drawPath(sctx);
+    if (state.ghost) strokePoly(sctx, state.ghost.pts, 0.35 * Math.max(0, state.ghost.t));
+    if (state.aiming) {
+      if (state.preview && state.preview.end && state.preview.end.body && state.preview.end.body.ent) {
+        const t = state.preview.end.body.ent;
+        if (t.type === "enemy" && !t.dead && !t.hidden) {
+          sctx.save();
+          sctx.strokeStyle = "rgba(255, 226, 140, 0.95)";
+          sctx.lineWidth = 2.4;
+          sctx.beginPath();
+          sctx.arc(t.x, t.y - 110 * (t.s || 1), 52, 0, Math.PI * 2);
+          sctx.stroke();
+          sctx.restore();
         }
       }
     }
@@ -1574,8 +1607,16 @@
     return function frame(now) {
       const dt = Math.min(0.033, (now - then) / 1000 || 0.016);
       update(dt);
-      if (state.mode === "title" || state.mode === "brief" || state.mode === "how") drawTitleBg();
-      else drawWorld();
+      if (state.mode === "title" || state.mode === "brief" || state.mode === "how") {
+        drawTitleBg();
+        if (sctx && sight) {
+          sctx.setTransform(1, 0, 0, 1, 0, 0);
+          sctx.clearRect(0, 0, sight.width, sight.height);
+        }
+      } else {
+        drawWorld();
+        drawSight();
+      }
       drawCylinder();
       requestAnimationFrame(loop(now));
     };
