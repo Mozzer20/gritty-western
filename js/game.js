@@ -244,8 +244,9 @@
     $("chapter").textContent = L.name;
     $("hint").textContent = L.hint;
     $("hint").classList.add("show");
-    $("hold-cue").textContent = "HOLD TO AIM";
-    $("hold-cue").style.opacity = "0.6";
+    $("hold-cue").textContent = "TAP AND HOLD";
+    $("hold-cue").style.opacity = "0.75";
+    showCoach(true);
     $("scoreEl").textContent = fmt(state.score);
     renderHearts();
   }
@@ -668,7 +669,6 @@
     $("overlay-brief").hidden = true;
     buildLevel(state.level);
     state.mode = "fight";
-    stamp("AIM");
     audio.whistle();
     showHomeBtn(true);
   }
@@ -681,6 +681,11 @@
   function showHomeBtn(on) {
     const b = $("btn-home");
     if (b) b.hidden = !on;
+  }
+
+  function showCoach(on) {
+    const el = $("coach");
+    if (el) el.hidden = !on;
   }
 
   function goHome() {
@@ -698,6 +703,7 @@
     $("chapter").textContent = "";
     $("hint").classList.remove("show");
     $("hold-cue").style.opacity = "0";
+    showCoach(false);
     showHomeBtn(false);
     paintTitle();
   }
@@ -724,7 +730,7 @@
       if (newHelp) newHelp.hidden = done;
     } else {
       start.textContent = "PLAY";
-      if (help) help.textContent = "Hold the screen. Drag to aim. Let go to shoot.";
+      if (help) help.textContent = "Tap and hold the street to aim. Drag, then let go to shoot.";
       if (neu) neu.hidden = true;
       if (newHelp) newHelp.hidden = true;
     }
@@ -1772,6 +1778,7 @@
     state.cam.roll = 0;
     state.aiming = true;
     state.aimWarm = 0;
+    showCoach(false);
     audio.unlock();
     audio.cock();
     rumblePat([5, 10, 4]);
@@ -1855,6 +1862,7 @@
     function openHow() {
       audio.unlock();
       $("overlay-how").hidden = false;
+      showCoach(false);
     }
     $("btn-home").addEventListener("click", () => {
       audio.unlock();
@@ -1864,6 +1872,7 @@
     $("btn-how2").addEventListener("click", openHow);
     $("btn-how-close").addEventListener("click", () => {
       $("overlay-how").hidden = true;
+      if (state.mode === "fight" && !state.aiming && !state.bullet) showCoach(true);
     });
     $("btn-mute").addEventListener("click", () => {
       audio.unlock();
@@ -1879,7 +1888,10 @@
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space" && state.mode === "fight") {
         e.preventDefault();
-        if (!state.aiming && !state.bullet) state.aiming = true;
+        if (!state.aiming && !state.bullet) {
+          state.aiming = true;
+          showCoach(false);
+        }
       }
       if (e.code === "KeyR" && state.mode === "fight") startReload();
     });
