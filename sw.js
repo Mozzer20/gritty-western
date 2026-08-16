@@ -1,4 +1,4 @@
-const CACHE = "bjango-v11";
+const CACHE = "bjango-v12";
 const ASSETS = [
   "./",
   "./index.html",
