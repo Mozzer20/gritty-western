@@ -610,7 +610,7 @@
       ".";
     const last = state.level >= GW.LEVELS.length - 1;
     $("btn-next").hidden = false;
-    $("btn-next").textContent = last ? "PLAY FROM START" : "NEXT STREET";
+    $("btn-next").textContent = last ? "PLAY AGAIN" : "NEXT STREET";
     if (last) {
       $("end-kicker").textContent = "RED DUST COUNTY";
       $("end-name").textContent = "THE END";
@@ -684,17 +684,17 @@
     const newHelp = $("new-help");
     if (state.unlocked > 0) {
       const done = state.unlocked >= GW.LEVELS.length;
-      start.textContent = done ? "PLAY FROM START" : "CONTINUE";
+      start.textContent = done ? "PLAY AGAIN" : "CONTINUE";
       if (help) {
         if (done) {
-          help.textContent = "You finished the county. Play the first street again.";
+          help.textContent = "You finished every street. Play from the first one again.";
         } else {
           const nxt = GW.LEVELS[continueLevel()];
-          help.textContent = "Continue from " + nxt.numeral + " · " + nxt.name + ".";
+          help.textContent = "Pick up at " + nxt.numeral + " · " + nxt.name + ".";
         }
       }
-      if (neu) neu.hidden = false;
-      if (newHelp) newHelp.hidden = false;
+      if (neu) neu.hidden = done;
+      if (newHelp) newHelp.hidden = done;
     } else {
       start.textContent = "PLAY";
       if (help) help.textContent = "Hold the screen. Drag to aim. Let go to shoot.";
