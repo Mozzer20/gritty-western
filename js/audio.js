@@ -64,6 +64,12 @@
           bufs: [],
           last: -1,
         },
+        plate: {
+          paths: ["assets/sfx/plate-1.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -278,6 +284,10 @@
       if (kind === "pan") {
         const rate = 0.96 + (bounce || 0) * 0.05 + (Math.random() * 0.04 - 0.02);
         if (this._playBank("pan", rate, 0.95)) return;
+      }
+      if (kind === "plate") {
+        const rate = 0.97 + (bounce || 0) * 0.03 + (Math.random() * 0.04 - 0.02);
+        if (this._playBank("plate", rate, 0.9)) return;
       }
       const f = 1540 + bounce * 260;
       this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42);
