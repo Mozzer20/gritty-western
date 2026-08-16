@@ -1,4 +1,4 @@
-const CACHE = "bjango-v14";
+const CACHE = "bjango-v15";
 const ASSETS = [
   "./",
   "./index.html",
@@ -17,6 +17,9 @@ const ASSETS = [
   "./assets/sfx/drop-3.wav",
   "./assets/sfx/drop-4.wav",
   "./assets/sfx/gun-1.wav",
+  "./assets/sfx/gun-2.wav",
+  "./assets/sfx/gun-3.wav",
+  "./assets/sfx/gun-4.wav",
   "./assets/sfx/wood-1.wav",
   "./assets/sfx/cock-1.wav",
   "./assets/sfx/plate-1.wav",

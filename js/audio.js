@@ -50,7 +50,12 @@
           last: -1,
         },
         gun: {
-          paths: ["assets/sfx/gun-1.wav"],
+          paths: [
+            "assets/sfx/gun-1.wav",
+            "assets/sfx/gun-2.wav",
+            "assets/sfx/gun-3.wav",
+            "assets/sfx/gun-4.wav",
+          ],
           raw: [],
           bufs: [],
           last: -1,
