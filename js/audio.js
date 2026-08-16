@@ -46,6 +46,12 @@
           bufs: [],
           last: -1,
         },
+        gun: {
+          paths: ["assets/sfx/gun-1.wav"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
       };
       this._fetchBanks();
     }
@@ -245,12 +251,15 @@
     }
 
     gunshot() {
+      const rate = 0.97 + Math.random() * 0.06;
+      if (this._playBank("gun", rate, 1)) return true;
       this.noise(0.28, 0.7, 90, 1800, 1);
       this.noise(0.08, 0.45, 1800, 10000, 1);
       this.noise(0.05, 0.22, 4000, 14000, 1);
       this.tone(62, 0.32, "sine", 0.38, 28, 1);
       this.tone(148, 0.14, "triangle", 0.12, 55, 1);
       this.tone(320, 0.05, "square", 0.04, 80, 1);
+      return false;
     }
 
     ping(bounce, kind) {

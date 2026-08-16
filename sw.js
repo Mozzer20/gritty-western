@@ -1,4 +1,4 @@
-const CACHE = "bjango-v6";
+const CACHE = "bjango-v7";
 const ASSETS = [
   "./",
   "./index.html",
@@ -16,6 +16,7 @@ const ASSETS = [
   "./assets/sfx/drop-2.wav",
   "./assets/sfx/drop-3.wav",
   "./assets/sfx/drop-4.wav",
+  "./assets/sfx/gun-1.wav",
 ];
 
 self.addEventListener("install", (e) => {

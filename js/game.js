@@ -464,8 +464,7 @@
     state.aiming = false;
     state.ghost = null;
     audio.stopHeart();
-    audio.gunshot();
-    audio.slam();
+    if (!audio.gunshot()) audio.slam();
     rumblePat([8, 40, 36, 20, 18]);
     flash();
     state.shake = 16;
