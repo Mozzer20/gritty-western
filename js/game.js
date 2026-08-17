@@ -7,6 +7,16 @@
   const SAVE = "gw.save.v2";
   const P = GW.physics;
   const audio = GW.audio;
+  const TITLE_BANK = {
+    crate: { x: 360, y: 820, s: 1.15 },
+    pan: { x: 600, y: 520, s: 1.15 },
+    enemy: { x: 360, y: 400, s: 1 },
+    path: [
+      { x: 366, y: 1151 },
+      { x: 547, y: 533 },
+      { x: 377, y: 358 },
+    ],
+  };
 
   const $ = (id) => document.getElementById(id);
   const canvas = $("view");
@@ -620,7 +630,7 @@
     e.hp -= head ? 2 : 1;
     e.flash = 0.12;
     e.hurt = 0.2;
-    state.hitstop = head ? 0.12 : 0.1;
+    state.hitstop = (bounces >= 1 ? 0.1 : 0) + (head ? 0.12 : 0.1);
     state.shake = 16;
     audio.ugh(head);
     rumblePat(head ? [6, 18, 8, 40, 50] : [8, 14, 10, 32, 36]);
@@ -640,7 +650,7 @@
       $("scoreEl").textContent = fmt(state.score);
       state.pendingStamp = { text: style, t: 0.28 };
       state.camFocus = e;
-      state.camHold = 0.78;
+      state.camHold = bounces >= 1 ? 0.98 : 0.78;
       return true;
     }
     state.pendingStamp = { text: head ? "GRAZE THE HAT" : "HE'S STILL UP", t: 0.18 };
@@ -782,6 +792,8 @@
 
   function startFight() {
     $("overlay-brief").hidden = true;
+    $("overlay-title").hidden = true;
+    $("overlay-end").hidden = true;
     buildLevel(state.level);
     state.mode = "fight";
     audio.whistle();
@@ -874,11 +886,13 @@
       if (help) help.textContent = "Pick up at " + nxt.numeral + " · " + nxt.name + ".";
     } else {
       start.textContent = "PLAY";
-      if (help) help.textContent = "Tap and hold the street to aim. Drag, then let go to shoot.";
+      if (help) help.textContent = "Hold. Drag until it says WILL HIT. Let go.";
     }
     const showNew = hasRun() || (state.unlocked > 0 && !done);
     if (neu) neu.hidden = !showNew;
+    if (strip) strip.hidden = state.unlocked <= 0;
     if (stripHelp) {
+      stripHelp.hidden = state.unlocked <= 0;
       stripHelp.textContent = state.unlocked > 0 ? "Tap a street to replay it. Your run stays." : "Your streets";
     }
     paintInstall();
@@ -1132,7 +1146,7 @@
             );
             rumblePat([4, 22, 8]);
             burst(ev.hit.x, ev.hit.y, "#f4e0a8", 20, 300);
-            state.hitstop = 0.14;
+            state.hitstop = 0.22;
             state.shake = 8;
             state.cam.roll += ev.hit.nx > 0 ? 0.07 : -0.07;
             if (ev.hit.body && ev.hit.body.ent && ev.hit.body.ent.type === "pan") {
@@ -1870,29 +1884,141 @@
     }
   }
 
+  function syncChrome() {
+    const poster = state.mode === "title" || state.mode === "brief" || state.mode === "how";
+    document.body.classList.toggle("on-title", poster);
+  }
+
+  function titlePathPoint(u) {
+    const pts = TITLE_BANK.path;
+    const t = Math.max(0, Math.min(1, u));
+    if (t <= 0.5) {
+      const k = t / 0.5;
+      return {
+        x: pts[0].x + (pts[1].x - pts[0].x) * k,
+        y: pts[0].y + (pts[1].y - pts[0].y) * k,
+      };
+    }
+    const k = (t - 0.5) / 0.5;
+    return {
+      x: pts[1].x + (pts[2].x - pts[1].x) * k,
+      y: pts[1].y + (pts[2].y - pts[1].y) * k,
+    };
+  }
+
   function drawTitleBg() {
     const v = state.view;
     ctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     const bg = images.street;
     if (bg) ctx.drawImage(bg, 0, 0, VW, VH);
     else {
       ctx.fillStyle = "#140c08";
       ctx.fillRect(0, 0, VW, VH);
     }
-    ctx.fillStyle = "rgba(8,4,2,0.35)";
-    ctx.fillRect(0, 0, VW, VH);
+
     for (const m of state.motes) {
       ctx.fillStyle = "rgba(232, 211, 170," + m.a + ")";
       ctx.beginPath();
       ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    const crate = TITLE_BANK.crate;
+    const pan = TITLE_BANK.pan;
+    const enemy = TITLE_BANK.enemy;
+    drawShadow(crate.x, crate.y + 26, 40 * crate.s, 13, 0.3);
+    drawShadow(pan.x, pan.y + 18, 22 * pan.s, 7, 0.2);
+    drawShadow(enemy.x, enemy.y + 4, 28, 9, 0.32);
+    drawProp({ type: "crate", x: crate.x, y: crate.y, s: crate.s, spin: 0, lean: 0, hurt: 0 });
+    drawProp({ type: "pan", x: pan.x, y: pan.y, s: pan.s, spin: 0.12, lean: 0, hurt: 0, anchorX: pan.x, anchorY: pan.y });
+    drawEnemy({
+      type: "enemy",
+      x: enemy.x,
+      y: enemy.y,
+      s: enemy.s,
+      species: "outlaw",
+      dead: false,
+      hidden: false,
+      drawT: 0,
+      drawMax: 1,
+      hurt: 0,
+      flash: 0,
+      fall: 0,
+    });
+
+    const pulse = 0.35 + 0.25 * Math.sin(performance.now() / 180);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(232, 195, 106," + pulse + ")";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(pan.x, pan.y, 48 * pan.s, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    const path = TITLE_BANK.path;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(255, 196, 70, 0.4)";
+    ctx.lineWidth = 11;
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    ctx.lineTo(path[1].x, path[1].y);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 230, 140, 0.55)";
+    ctx.beginPath();
+    ctx.moveTo(path[1].x, path[1].y);
+    ctx.lineTo(path[2].x, path[2].y);
+    ctx.stroke();
+    ctx.setLineDash([11, 8]);
+    ctx.lineDashOffset = -((performance.now() / 16) % 76);
+    ctx.strokeStyle = "#ffe7a0";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    ctx.lineTo(path[1].x, path[1].y);
+    ctx.stroke();
+    ctx.strokeStyle = "#fff4b0";
+    ctx.beginPath();
+    ctx.moveTo(path[1].x, path[1].y);
+    ctx.lineTo(path[2].x, path[2].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.fillStyle = "#fff4c8";
+    ctx.beginPath();
+    ctx.arc(path[1].x, path[1].y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 220, 120, 0.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(path[1].x, path[1].y, 11, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const loop = (performance.now() / 2800) % 1;
+    const bead = titlePathPoint(loop < 0.78 ? loop / 0.78 : 1);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = "rgba(255, 246, 200, 0.95)";
+    ctx.beginPath();
+    ctx.arc(bead.x, bead.y, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = "rgba(232, 195, 106, 0.12)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, VW - 20, VH - 20);
   }
 
   function loop(then) {
     return function frame(now) {
       const dt = Math.min(0.033, (now - then) / 1000 || 0.016);
       update(dt);
+      syncChrome();
       if (state.mode === "title" || state.mode === "brief" || state.mode === "how") {
         drawTitleBg();
         if (sctx && sight) {
@@ -1965,7 +2091,8 @@
     save();
     $("scoreEl").textContent = "0";
     renderHearts();
-    showBrief(at);
+    if (at === 0) startFight();
+    else showBrief(at);
   }
 
   function resumeRun() {
@@ -2020,7 +2147,13 @@
         beginRun(0);
         return;
       }
-      showBrief(state.level + 1);
+      const nxt = state.level + 1;
+      if (nxt === 1) {
+        state.level = nxt;
+        startFight();
+        return;
+      }
+      showBrief(nxt);
     });
     $("btn-retry").addEventListener("click", () => {
       $("overlay-end").hidden = true;
@@ -2061,7 +2194,7 @@
       closeMenu();
       const url = "https://mozzer20.github.io/gritty-western/";
       const title = "Bjango";
-      const text = "Bjango — The Gritty Western. Hold. Aim. Let go.";
+      const text = "Bjango — hold, drag until it says WILL HIT, let go.";
       if (navigator.share) {
         navigator.share({ title: title, text: text, url: url }).catch(function () {});
         return;

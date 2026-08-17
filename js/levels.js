@@ -19,7 +19,7 @@
       par: 1,
       preview: "full",
       entities: [
-        { type: "enemy", x: 360, y: 430, species: "outlaw", draw: 6.6 },
+        { type: "enemy", x: 360, y: 430, species: "outlaw", draw: 8.8 },
       ],
     },
     {

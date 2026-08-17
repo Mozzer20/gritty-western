@@ -65,6 +65,7 @@ body {
   background: #070403;
   overflow: hidden;
   box-shadow: 0 0 80px rgba(0, 0, 0, 0.8);
+  cursor: crosshair;
 }
 
 canvas#view,
@@ -396,6 +397,33 @@ canvas#sight {
   align-items: center;
   justify-content: center;
   padding: 24px 20px;
+}
+
+#overlay-title {
+  align-items: flex-end;
+  background: linear-gradient(
+    to top,
+    rgba(5, 3, 2, 0.94) 0%,
+    rgba(5, 3, 2, 0.62) 36%,
+    rgba(5, 3, 2, 0.12) 62%,
+    rgba(5, 3, 2, 0.2) 100%
+  );
+  padding: 18px 20px calc(22px + var(--safe-bot));
+}
+
+#overlay-title .card {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+#overlay-title #portrait {
+  display: none;
+}
+
+body.on-title #hud,
+body.on-title #cylinder-wrap {
+  visibility: hidden;
 }
 
 .overlay[hidden] { display: none !important; }
