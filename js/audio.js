@@ -22,6 +22,7 @@
       this._theme = 0;
       this._wind = null;
       this._heartT = 0;
+      this._heart = null;
       this._gustT = 8;
       this._gustOn = false;
       this._gustArmed = false;
@@ -109,6 +110,12 @@
         },
         dust: {
           paths: ["assets/sfx/dust-1.mp3"],
+          raw: [],
+          bufs: [],
+          last: -1,
+        },
+        heart: {
+          paths: ["assets/sfx/heart-1.mp3"],
           raw: [],
           bufs: [],
           last: -1,
@@ -214,16 +221,69 @@
       this._wind.f.frequency.setTargetAtTime(on ? 140 : 380, this.ctx.currentTime, 0.12);
     }
 
+    startHeart() {
+      if (!this.ctx || this.muted) return;
+      if (this._heart && this._heart.alive) return;
+      const buf = this._banks.heart.bufs[0];
+      if (!buf) return;
+      if (this._heartT) {
+        clearTimeout(this._heartT);
+        this._heartT = 0;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 380;
+      lp.Q.value = 0.7;
+      const g = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.48, now + 0.16);
+      src.connect(lp);
+      lp.connect(g);
+      g.connect(this._out(0.45));
+      src.start();
+      this._heart = { src, g, lp, alive: true, lock: false };
+    }
+
+    setHeartLock(on) {
+      if (!this._heart || !this._heart.alive || !this.ctx) return;
+      if (!!on === this._heart.lock) return;
+      this._heart.lock = !!on;
+      const now = this.ctx.currentTime;
+      const rate = on ? 1.18 : 1;
+      try {
+        this._heart.src.playbackRate.cancelScheduledValues(now);
+        this._heart.src.playbackRate.setValueAtTime(this._heart.src.playbackRate.value, now);
+        this._heart.src.playbackRate.linearRampToValueAtTime(rate, now + 0.12);
+      } catch (e) {}
+    }
+
     stopHeart() {
       if (this._heartT) {
         clearTimeout(this._heartT);
         this._heartT = 0;
       }
+      const h = this._heart;
+      if (!h || !h.alive) return;
+      h.alive = false;
+      this._heart = null;
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      try {
+        const cur = Math.max(0.0001, h.g.gain.value);
+        h.g.gain.cancelScheduledValues(now);
+        h.g.gain.setValueAtTime(cur, now);
+        h.g.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+        h.src.stop(now + 0.11);
+      } catch (e) {}
     }
 
     heartbeat() {
-      this.stopHeart();
       this.tone(48, 0.09, "sine", 0.08, 28, 1);
+      if (this._heartT) clearTimeout(this._heartT);
       const later = this;
       this._heartT = setTimeout(function () {
         later._heartT = 0;

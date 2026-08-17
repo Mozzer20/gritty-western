@@ -1113,11 +1113,10 @@
       const cue = $("hold-cue");
       cue.textContent = lethal ? (tr.bounces ? "BOUNCE WILL HIT" : "WILL HIT") : "DRAG TO AIM";
       cue.style.opacity = "0.9";
-      state.heartT -= dt;
-      if (state.heartT <= 0) {
-        audio.heartbeat();
-        state.heartT = 0.72;
-      }
+      audio.startHeart();
+      audio.setHeartLock(!!lockId);
+    } else {
+      audio.stopHeart();
     }
 
     if (state.mode === "fight" && !state.bullet && $("overlay-how").hidden) {
@@ -1194,6 +1193,7 @@
     if (state.reloading > 0 || state.ammo === 6) return;
     state.reloading = 1.15;
     state.aiming = false;
+    audio.stopHeart();
     audio.reload();
     rumble(10);
     stamp("RELOAD");
@@ -2235,6 +2235,9 @@
           state.aiming = true;
           markCoached();
           showCoach(false);
+          audio.unlock();
+          audio.cock();
+          audio.startHeart();
         }
       }
       if (e.code === "KeyR" && state.mode === "fight") startReload();
