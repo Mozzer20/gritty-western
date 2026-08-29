@@ -2707,7 +2707,21 @@
       paintInstall();
     });
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {});
+      navigator.serviceWorker
+        .register("sw.js", { scope: "./" })
+        .then((reg) => {
+          reg.update().catch(() => {});
+          reg.addEventListener("updatefound", () => {
+            const installing = reg.installing;
+            if (!installing) return;
+            installing.addEventListener("statechange", () => {
+              if (installing.state === "installed" && navigator.serviceWorker.controller) {
+                window.location.reload();
+              }
+            });
+          });
+        })
+        .catch(() => {});
     }
   }
 
