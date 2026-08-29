@@ -9,7 +9,9 @@ const vm = require("vm");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const css = fs.readFileSync(path.join(__dirname, "..", "css", "game.css"), "utf8");
 const audioSrc = fs.readFileSync(path.join(__dirname, "..", "js", "audio.js"), "utf8");
+const physicsSrc = fs.readFileSync(path.join(__dirname, "..", "js", "physics.js"), "utf8");
 const gameSrc = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+const swSrc = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
 
 describe("1. Spatial Audio & New Sound FX", () => {
   it("defines stereo panning in audio engine", () => {
@@ -33,6 +35,19 @@ describe("2. Tumbleweeds & Destructibles Physics", () => {
     assert.match(gameSrc, /updateTumbleweeds/);
     assert.match(gameSrc, /checkBulletTumbleweeds/);
     assert.match(gameSrc, /drawTumbleweeds/);
+  });
+
+  it("loads realistic tumbleweed sprite asset and precaches it in service worker", () => {
+    assert.match(gameSrc, /tumbleweed:\s*"assets\/props\/tumbleweed\.webp"/);
+    assert.match(swSrc, /assets\/props\/tumbleweed\.webp/);
+    assert.ok(fs.existsSync(path.join(__dirname, "..", "assets", "props", "tumbleweed.webp")));
+  });
+
+  it("integrates tumbleweeds into physics engine and aiming reticle lock-on", () => {
+    assert.match(physicsSrc, /tumbleweed:\s*\{[^}]*crunch:\s*true/);
+    assert.match(gameSrc, /material:\s*"tumbleweed"/);
+    assert.match(gameSrc, /drawLockRing/);
+    assert.match(gameSrc, /sctx\.arc\(tw\.x,\s*tw\.y/);
   });
 
   it("awards trick score and plays crunch SFX when shooting a tumbleweed", () => {

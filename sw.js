@@ -1,4 +1,4 @@
-const CACHE = "bjango-v28";
+const CACHE = "bjango-v29";
 const CORE = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const CORE = [
   "./js/game.js",
   "./manifest.json",
   "./assets/characters/title-cowboy.webp",
+  "./assets/props/tumbleweed.webp",
   "./assets/icons/favicon.png",
   "./assets/icons/apple-touch-icon.png",
   "./assets/icons/icon-192.png",

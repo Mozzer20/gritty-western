@@ -179,6 +179,7 @@
     adobe: { restitution: 0.05, absorb: true, spark: false, ping: false },
     flesh: { restitution: 0, absorb: true, spark: false, ping: false, lethal: true },
     dirt: { restitution: 0, absorb: true, spark: false, ping: false },
+    tumbleweed: { restitution: 0.18, absorb: true, spark: false, ping: false, crunch: true },
   };
 
   /**

@@ -46,6 +46,7 @@
     barrel: "assets/props/barrel.webp",
     crate: "assets/props/crate.webp",
     sign: "assets/props/sign.webp",
+    tumbleweed: "assets/props/tumbleweed.webp",
   };
 
   const images = {};
@@ -461,6 +462,22 @@
         });
       }
     }
+    if (state.tumbleweeds && state.tumbleweeds.length) {
+      for (const tw of state.tumbleweeds) {
+        if (tw.x >= -30 && tw.x <= VW + 30 && tw.y <= VH + 30) {
+          bodies.push({
+            id: tw.id || ("tw-" + Math.round(tw.x)),
+            kind: "circle",
+            x: tw.x,
+            y: tw.y,
+            r: tw.r,
+            material: "tumbleweed",
+            tag: "tumbleweed",
+            tumbleweed: tw,
+          });
+        }
+      }
+    }
     return bodies;
   }
 
@@ -574,7 +591,9 @@
       const hit = path[i].hit;
       if (!hit) continue;
       const mat = P.MATERIALS[hit.material] || {};
-      if (mat.lethal) ev.push({ dist, kind: "kill", hit, bounce: path[i].bounce });
+      if (mat.crunch || hit.material === "tumbleweed" || (hit.body && hit.body.tag === "tumbleweed")) {
+        ev.push({ dist, kind: "tumbleweed", hit, bounce: path[i].bounce });
+      } else if (mat.lethal) ev.push({ dist, kind: "kill", hit, bounce: path[i].bounce });
       else if (mat.spark) ev.push({ dist, kind: "bounce", hit, bounce: path[i].bounce });
       else if (mat.absorb) ev.push({ dist, kind: "absorb", hit, bounce: path[i].bounce });
     }
@@ -1255,14 +1274,15 @@
     if (state.mode !== "fight" && state.mode !== "bounty" && state.mode !== "title") return;
     state.tumbleweedTimer -= dt;
     if (state.tumbleweedTimer <= 0) {
-      state.tumbleweedTimer = 4.2 + Math.random() * 6.0;
+      state.tumbleweedTimer = 3.5 + Math.random() * 5.0;
       const fromLeft = Math.random() > 0.5;
       state.tumbleweeds.push({
+        id: "tw-" + Date.now() + "-" + Math.floor(Math.random() * 10000),
         x: fromLeft ? -40 : VW + 40,
         y: 840 + Math.random() * 120,
         vx: fromLeft ? 110 + Math.random() * 90 : -(110 + Math.random() * 90),
         vy: -30 - Math.random() * 60,
-        r: 22 + Math.random() * 16,
+        r: 28 + Math.random() * 16,
         rot: Math.random() * Math.PI * 2,
         vr: fromLeft ? 3 + Math.random() * 3.5 : -(3 + Math.random() * 3.5),
         seed: Math.random() * 100,
@@ -1497,6 +1517,20 @@
             if (ev.hit.body && ev.hit.body.ent) {
               ev.hit.body.ent.hurt = 0.22;
               ev.hit.body.ent.lean = (ev.hit.body.ent.lean || 0) + 0.1;
+            }
+          } else if (ev.kind === "tumbleweed") {
+            audio.tumbleweedCrunch(ev.hit.x);
+            burst(ev.hit.x, ev.hit.y, "#c4a574", 28, 300);
+            burst(ev.hit.x, ev.hit.y, "#8c6941", 20, 200);
+            burst(ev.hit.x, ev.hit.y, "#edd7a8", 16, 240);
+            rumblePat([14, 18, 12]);
+            state.shake = 8;
+            state.score += 100;
+            $("scoreEl").textContent = fmt(state.score);
+            stamp("TUMBLEWEED SNIPER +100");
+            if (ev.hit.body && ev.hit.body.tumbleweed) {
+              const idx = state.tumbleweeds.indexOf(ev.hit.body.tumbleweed);
+              if (idx >= 0) state.tumbleweeds.splice(idx, 1);
             }
           }
         }
@@ -2000,24 +2034,46 @@
   function drawTumbleweeds() {
     for (const tw of state.tumbleweeds) {
       ctx.save();
+      // Ground shadow
+      const floorY = 960 + Math.sin(tw.x * 0.01) * 20;
+      const groundDist = Math.max(0, floorY - (tw.y + tw.r));
+      const shadowAlpha = Math.max(0, 0.35 - groundDist / 140);
+      if (shadowAlpha > 0.02) {
+        ctx.fillStyle = `rgba(18, 10, 6, ${shadowAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(tw.x, floorY + 4, tw.r * (1 + groundDist * 0.008), tw.r * 0.32, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.translate(tw.x, tw.y);
       ctx.rotate(tw.rot);
-      ctx.strokeStyle = "rgba(180, 140, 90, 0.75)";
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, tw.r, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, tw.r * 0.65, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(210, 175, 120, 0.85)";
-      ctx.lineWidth = 1.6;
-      for (let j = 0; j < 8; j++) {
-        const a = (j * Math.PI) / 4 + tw.seed;
+      const img = images.tumbleweed;
+      if (img && img.complete && img.naturalWidth > 0) {
+        const sz = tw.r * 2.24;
+        ctx.drawImage(img, -sz / 2, -sz / 2, sz, sz);
+      } else {
+        ctx.strokeStyle = "rgba(140, 95, 52, 0.85)";
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * (tw.r * 0.2), Math.sin(a) * (tw.r * 0.2));
-        ctx.lineTo(Math.cos(a + 0.4) * tw.r, Math.sin(a + 0.4) * tw.r);
+        ctx.arc(0, 0, tw.r * 0.9, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.strokeStyle = "rgba(180, 135, 80, 0.75)";
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(0, 0, tw.r * 0.6, 0, Math.PI * 2);
+        ctx.stroke();
+        for (let j = 0; j < 12; j++) {
+          const a = (j * Math.PI) / 6 + tw.seed;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * (tw.r * 0.15), Math.sin(a) * (tw.r * 0.15));
+          ctx.quadraticCurveTo(
+            Math.cos(a + 0.6) * (tw.r * 0.7),
+            Math.sin(a + 0.6) * (tw.r * 0.7),
+            Math.cos(a + 0.2) * tw.r,
+            Math.sin(a + 0.2) * tw.r
+          );
+          ctx.stroke();
+        }
       }
       ctx.restore();
     }
@@ -2052,6 +2108,16 @@
         c.beginPath();
         c.arc(p.x, p.y, 11, 0, Math.PI * 2);
         c.stroke();
+      } else if (p.hit && (p.hit.material === "tumbleweed" || (p.hit.body && p.hit.body.tag === "tumbleweed"))) {
+        c.fillStyle = "#ffdd80";
+        c.beginPath();
+        c.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = "rgba(255, 190, 60, 0.95)";
+        c.lineWidth = 2.4;
+        c.beginPath();
+        c.arc(p.x, p.y, 13, 0, Math.PI * 2);
+        c.stroke();
       }
     }
   }
@@ -2074,14 +2140,31 @@
       strokePoly(sctx, state.ghost.pts, 0.35 * Math.max(0, state.ghost.t));
     }
     if (state.aiming) {
-      if (state.preview && state.preview.end && state.preview.end.body && state.preview.end.body.ent) {
-        const t = state.preview.end.body.ent;
-        if (t.type === "enemy" && !t.dead && !t.hidden) {
+      if (state.preview && state.preview.end && state.preview.end.body) {
+        const b = state.preview.end.body;
+        if (b.ent && b.ent.type === "enemy" && !b.ent.dead && !b.ent.hidden) {
           sctx.save();
           sctx.strokeStyle = "rgba(255, 226, 140, 0.95)";
           sctx.lineWidth = 2.4;
           sctx.beginPath();
-          sctx.arc(t.x, t.y - 110 * (t.s || 1), 52, 0, Math.PI * 2);
+          sctx.arc(b.ent.x, b.ent.y - 110 * (b.ent.s || 1), 52, 0, Math.PI * 2);
+          sctx.stroke();
+          sctx.restore();
+        } else if (b.tag === "tumbleweed" || b.tumbleweed) {
+          const tw = b.tumbleweed;
+          sctx.save();
+          sctx.strokeStyle = "rgba(255, 215, 110, 0.95)";
+          sctx.lineWidth = 2.4;
+          sctx.beginPath();
+          sctx.arc(tw.x, tw.y, tw.r + 8, 0, Math.PI * 2);
+          sctx.stroke();
+          // Crosshairs
+          sctx.setLineDash([4, 4]);
+          sctx.beginPath();
+          sctx.moveTo(tw.x - tw.r - 14, tw.y);
+          sctx.lineTo(tw.x + tw.r + 14, tw.y);
+          sctx.moveTo(tw.x, tw.y - tw.r - 14);
+          sctx.lineTo(tw.x, tw.y + tw.r + 14);
           sctx.stroke();
           sctx.restore();
         }
@@ -2095,20 +2178,29 @@
       !state.aiming ||
       !state.preview ||
       !state.preview.end ||
-      !state.preview.end.body ||
-      !state.preview.end.body.ent
+      !state.preview.end.body
     ) {
       return;
     }
-    const t = state.preview.end.body.ent;
-    if (t.type !== "enemy" || t.dead || t.hidden) return;
-    ctx.save();
-    ctx.strokeStyle = "rgba(232, 195, 106, 0.9)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(t.x, t.y - 110 * (t.s || 1), 52, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    const b = state.preview.end.body;
+    if (b.ent && b.ent.type === "enemy" && !b.ent.dead && !b.ent.hidden) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(232, 195, 106, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(b.ent.x, b.ent.y - 110 * (b.ent.s || 1), 52, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (b.tag === "tumbleweed" || b.tumbleweed) {
+      const tw = b.tumbleweed;
+      ctx.save();
+      ctx.strokeStyle = "rgba(232, 195, 106, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(tw.x, tw.y, tw.r + 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawGhost() {
