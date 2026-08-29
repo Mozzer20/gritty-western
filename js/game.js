@@ -1997,6 +1997,32 @@
     c.restore();
   }
 
+  function drawTumbleweeds() {
+    for (const tw of state.tumbleweeds) {
+      ctx.save();
+      ctx.translate(tw.x, tw.y);
+      ctx.rotate(tw.rot);
+      ctx.strokeStyle = "rgba(180, 140, 90, 0.75)";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, tw.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, tw.r * 0.65, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(210, 175, 120, 0.85)";
+      ctx.lineWidth = 1.6;
+      for (let j = 0; j < 8; j++) {
+        const a = (j * Math.PI) / 4 + tw.seed;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * (tw.r * 0.2), Math.sin(a) * (tw.r * 0.2));
+        ctx.lineTo(Math.cos(a + 0.4) * tw.r, Math.sin(a + 0.4) * tw.r);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
   function drawPath(c) {
     const trace = state.preview || currentTrace();
     if (!trace || !trace.path) return;
