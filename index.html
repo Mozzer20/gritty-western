@@ -89,6 +89,11 @@
             </div>
           </div>
           <div id="chapter"></div>
+          <div id="bounty-hud" class="bounty-hud" hidden>
+            <span class="bounty-badge">BOUNTY</span>
+            <b id="bounty-cash">$0</b>
+            <span id="bounty-mult" class="bounty-mult">1.0x</span>
+          </div>
           <div id="callout"></div>
           <div id="hint"></div>
           <div id="hold-cue">TAP AND HOLD</div>
@@ -110,6 +115,16 @@
         <nav id="menu" hidden aria-label="Menu">
           <p class="menu-kicker">BJANGO</p>
           <button type="button" id="btn-home" hidden>Home</button>
+          <button type="button" id="btn-bounty-mode">Bounty Hunt</button>
+          <div class="menu-gunsmith-section">
+            <p class="menu-sub-kicker">GUNSMITH FINISH</p>
+            <div id="gunsmith-chips" class="gunsmith-chips">
+              <button type="button" class="gun-chip active" data-skin="blued">Blued</button>
+              <button type="button" class="gun-chip" data-skin="silver">Silver</button>
+              <button type="button" class="gun-chip" data-skin="gold">Gold</button>
+              <button type="button" class="gun-chip" data-skin="charred">Charred</button>
+            </div>
+          </div>
           <button type="button" id="btn-how">How to play</button>
           <button type="button" id="btn-share">Share</button>
           <button type="button" id="btn-install" hidden>Add to Home Screen</button>
@@ -123,13 +138,19 @@
         <div id="overlay-title" class="overlay">
           <div class="card">
             <p class="brand-kicker">A RED DUST PICTURE</p>
-            <img id="portrait" src="assets/characters/title-cowboy.webp" width="170" height="295" alt="" />
+            <div id="portrait-wrap" class="portrait-wrap" title="Tap hat!">
+              <img id="portrait" src="assets/characters/title-cowboy.webp" width="170" height="295" alt="Title Cowboy" />
+              <div id="hat-hitbox" class="hat-hitbox" aria-label="Cowboy Hat Easter Egg"></div>
+            </div>
             <h1 class="brand">BJANGO</h1>
             <p class="brand-sub">THE GRITTY WESTERN</p>
             <p class="tag">HOLD · DRAG · LET GO</p>
             <p class="help-line" id="strip-help" hidden>Tap a street to replay it. Your run stays.</p>
             <div id="star-strip" class="star-strip" aria-label="Scene ranks" hidden></div>
-            <button class="btn" id="btn-start" type="button">PLAY</button>
+            <div class="title-btn-row">
+              <button class="btn" id="btn-start" type="button">CAMPAIGN</button>
+              <button class="btn btn-bounty" id="btn-bounty-start" type="button">BOUNTY HUNT</button>
+            </div>
             <p class="help-line" id="start-help">Hold. Drag until it says WILL HIT. Let go.</p>
           </div>
         </div>

@@ -417,13 +417,156 @@ canvas#sight {
   box-shadow: none;
 }
 
-#overlay-title #portrait {
-  display: none;
+.portrait-wrap {
+  position: relative;
+  width: 140px;
+  height: 180px;
+  margin: 0 auto 8px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+#portrait {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.75)) saturate(1.08) contrast(1.06);
+  transform-origin: bottom center;
+  transition: transform 0.15s ease;
+}
+
+.hat-hitbox {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 65px;
+  cursor: pointer;
+  z-index: 2;
+  border-radius: 50% 50% 0 0;
+}
+
+.hat-popping {
+  animation: cowboyHatPop 0.75s cubic-bezier(0.18, 0.9, 0.32, 1.2) forwards;
+}
+
+@keyframes cowboyHatPop {
+  0% { transform: scale(1) translateY(0) rotate(0deg); }
+  25% { transform: scale(1.1) translateY(-28px) rotate(-14deg); }
+  50% { transform: scale(1.05) translateY(-38px) rotate(18deg); }
+  75% { transform: scale(0.98) translateY(-10px) rotate(-4deg); }
+  100% { transform: scale(1) translateY(0) rotate(0deg); }
 }
 
 body.on-title #hud,
 body.on-title #cylinder-wrap {
   visibility: hidden;
+}
+
+.title-btn-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.title-btn-row .btn {
+  flex: 1;
+  margin: 0;
+}
+
+.btn-bounty {
+  background: linear-gradient(180deg, #6e1c14, #3a0d09) !important;
+  border-color: rgba(232, 195, 106, 0.5) !important;
+}
+
+.btn-bounty:hover, .btn-bounty:active {
+  background: linear-gradient(180deg, #8b241a, #4a120c) !important;
+}
+
+.bounty-hud {
+  position: absolute;
+  top: calc(72px + var(--safe-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-family: Cinzel, serif;
+  font-size: 13px;
+  color: var(--gold);
+  text-shadow: 0 2px 8px #000;
+  z-index: 4;
+}
+
+.bounty-hud[hidden] { display: none !important; }
+
+.bounty-badge {
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  background: rgba(139, 30, 30, 0.85);
+  color: var(--paper);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(232, 195, 106, 0.4);
+}
+
+.bounty-hud b {
+  font-size: 18px;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(232, 195, 106, 0.6);
+}
+
+.bounty-mult {
+  font-size: 11px;
+  background: rgba(232, 195, 106, 0.2);
+  border: 1px solid var(--gold);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.menu-gunsmith-section {
+  margin: 8px 12px 14px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(232, 195, 106, 0.15);
+  border-radius: 6px;
+}
+
+.menu-sub-kicker {
+  margin: 0 0 8px;
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  color: var(--gold);
+  opacity: 0.8;
+  text-align: left;
+}
+
+.gunsmith-chips {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.gun-chip {
+  padding: 6px 4px !important;
+  min-height: 32px !important;
+  font-size: 11px !important;
+  text-align: center !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(232, 195, 106, 0.2) !important;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gun-chip.active {
+  background: rgba(232, 195, 106, 0.25) !important;
+  border-color: var(--gold) !important;
+  color: #fff !important;
+  box-shadow: 0 0 8px rgba(232, 195, 106, 0.35);
 }
 
 .overlay[hidden] { display: none !important; }
@@ -589,6 +732,19 @@ body.on-title #cylinder-wrap {
 }
 
 #bt-veil.on { opacity: 1; }
+
+#bt-veil.killcam {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse at center, transparent 25%, rgba(139, 30, 30, 0.35) 70%, rgba(16, 10, 7, 0.85) 100%),
+    linear-gradient(to bottom, rgba(139, 30, 30, 0.2), transparent 40%, transparent 60%, rgba(139, 30, 30, 0.25));
+  animation: killcamPulse 0.35s ease-in-out infinite alternate;
+}
+
+@keyframes killcamPulse {
+  0% { transform: scale(1); filter: contrast(1.1) brightness(1); }
+  100% { transform: scale(1.02); filter: contrast(1.25) brightness(1.15); }
+}
 
 #flash {
   position: absolute;

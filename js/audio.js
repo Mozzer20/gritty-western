@@ -317,7 +317,7 @@
       this._wind = { src, g, f };
     }
 
-    _out(near) {
+    _out(near, panX) {
       const n = near == null ? 1 : near;
       const lp = this.ctx.createBiquadFilter();
       lp.type = "lowpass";
@@ -325,11 +325,44 @@
       const g = this.ctx.createGain();
       g.gain.value = 0.38 + 0.62 * n;
       lp.connect(g);
+      
+      const pVal = panX == null ? 0 : Math.max(-1, Math.min(1, (panX - 360) / 360));
+      if (this.ctx.createStereoPanner && pVal !== 0) {
+        try {
+          const pan = this.ctx.createStereoPanner();
+          pan.pan.value = pVal;
+          g.connect(pan);
+          pan.connect(this.master);
+          return lp;
+        } catch (_) {}
+      }
       g.connect(this.master);
       return lp;
     }
 
-    noise(dur, peak, hp, lp, near) {
+    _playBank(name, rate, gain, panX) {
+      if (!this.ctx || this.muted) return false;
+      const bank = this._banks[name];
+      if (!bank) return false;
+      const ready = bank.bufs.filter(function (b) {
+        return !!b;
+      });
+      if (!ready.length) return false;
+      let pick = Math.floor(Math.random() * ready.length);
+      if (ready.length > 1 && pick === bank.last) pick = (pick + 1) % ready.length;
+      bank.last = pick;
+      const src = this.ctx.createBufferSource();
+      src.buffer = ready[pick];
+      src.playbackRate.value = rate;
+      const g = this.ctx.createGain();
+      g.gain.value = gain;
+      src.connect(g);
+      g.connect(this._out(1, panX));
+      src.start();
+      return true;
+    }
+
+    noise(dur, peak, hp, lp, near, panX) {
       if (!this.ctx || this.muted) return;
       const n = Math.max(32, this.ctx.sampleRate * dur);
       const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
@@ -354,11 +387,11 @@
       }
       const e = env(this.ctx, 0.002, 0.025, 0.2, dur, peak);
       node.connect(e);
-      e.connect(this._out(near));
+      e.connect(this._out(near, panX));
       src.start();
     }
 
-    tone(freq, dur, type, peak, slide, near) {
+    tone(freq, dur, type, peak, slide, near, panX) {
       if (!this.ctx || this.muted) return;
       const o = this.ctx.createOscillator();
       o.type = type || "sine";
@@ -366,40 +399,40 @@
       if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), this.ctx.currentTime + dur);
       const e = env(this.ctx, 0.008, dur * 0.22, 0.28, dur * 0.72, peak || 0.12);
       o.connect(e);
-      e.connect(this._out(near));
+      e.connect(this._out(near, panX));
       o.start();
       o.stop(this.ctx.currentTime + dur + 0.05);
     }
 
-    gunshot() {
+    gunshot(panX) {
       const rate = 0.97 + Math.random() * 0.06;
-      if (this._playBank("gun", rate, 1)) return true;
-      this.noise(0.28, 0.7, 90, 1800, 1);
-      this.noise(0.08, 0.45, 1800, 10000, 1);
-      this.noise(0.05, 0.22, 4000, 14000, 1);
-      this.tone(62, 0.32, "sine", 0.38, 28, 1);
-      this.tone(148, 0.14, "triangle", 0.12, 55, 1);
-      this.tone(320, 0.05, "square", 0.04, 80, 1);
+      if (this._playBank("gun", rate, 1, panX)) return true;
+      this.noise(0.28, 0.7, 90, 1800, 1, panX);
+      this.noise(0.08, 0.45, 1800, 10000, 1, panX);
+      this.noise(0.05, 0.22, 4000, 14000, 1, panX);
+      this.tone(62, 0.32, "sine", 0.38, 28, 1, panX);
+      this.tone(148, 0.14, "triangle", 0.12, 55, 1, panX);
+      this.tone(320, 0.05, "square", 0.04, 80, 1, panX);
       return false;
     }
 
-    ping(bounce, kind) {
+    ping(bounce, kind, panX) {
       if (kind === "pan") {
         const rate = 0.96 + (bounce || 0) * 0.05 + (Math.random() * 0.04 - 0.02);
-        if (this._playBank("pan", rate, 0.95)) return;
+        if (this._playBank("pan", rate, 0.95, panX)) return;
       }
       if (kind === "plate") {
         const rate = 0.97 + (bounce || 0) * 0.03 + (Math.random() * 0.04 - 0.02);
-        if (this._playBank("plate", rate, 0.9)) return;
+        if (this._playBank("plate", rate, 0.9, panX)) return;
       }
       if (kind === "barrel") {
         const rate = 0.96 + (bounce || 0) * 0.03 + (Math.random() * 0.05 - 0.02);
-        if (this._playBank("barrel", rate, 0.95)) return;
+        if (this._playBank("barrel", rate, 0.95, panX)) return;
       }
-      const f = 1540 + bounce * 260;
-      this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42);
-      this.tone(f * 2.03, 0.09, "triangle", 0.05, f * 0.9, 0.42);
-      this.noise(0.05, 0.08, 2800, 11000, 0.4);
+      const f = 1540 + (bounce || 0) * 260;
+      this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42, panX);
+      this.tone(f * 2.03, 0.09, "triangle", 0.05, f * 0.9, 0.42, panX);
+      this.noise(0.05, 0.08, 2800, 11000, 0.4, panX);
     }
 
     lock() {
@@ -407,17 +440,17 @@
       this.noise(0.018, 0.06, 2000, 7000, 1);
     }
 
-    dust() {
+    dust(panX) {
       const rate = 0.96 + Math.random() * 0.08;
-      if (this._playBank("dust", rate, 0.9)) return;
-      this.noise(0.16, 0.18, 80, 500, 0.5);
+      if (this._playBank("dust", rate, 0.9, panX)) return;
+      this.noise(0.16, 0.18, 80, 500, 0.5, panX);
     }
 
-    wood() {
+    wood(panX) {
       const rate = 0.96 + Math.random() * 0.08;
-      if (this._playBank("wood", rate, 0.95)) return;
-      this.noise(0.12, 0.22, 80, 700, 0.55);
-      this.tone(110, 0.14, "triangle", 0.08, 50, 0.55);
+      if (this._playBank("wood", rate, 0.95, panX)) return;
+      this.noise(0.12, 0.22, 80, 700, 0.55, panX);
+      this.tone(110, 0.14, "triangle", 0.08, 50, 0.55, panX);
     }
 
     cock() {
@@ -456,18 +489,18 @@
       }, 260);
     }
 
-    thud() {
+    thud(panX) {
       const rate = 0.96 + Math.random() * 0.08;
-      if (this._playBank("drop", rate, 0.95)) return;
-      this.tone(58, 0.34, "sine", 0.24, 24, 0.62);
-      this.tone(92, 0.18, "triangle", 0.07, 40, 0.62);
-      this.noise(0.2, 0.16, 60, 420, 0.58);
+      if (this._playBank("drop", rate, 0.95, panX)) return;
+      this.tone(58, 0.34, "sine", 0.24, 24, 0.62, panX);
+      this.tone(92, 0.18, "triangle", 0.07, 40, 0.62, panX);
+      this.noise(0.2, 0.16, 60, 420, 0.58, panX);
     }
 
-    ugh(head) {
+    ugh(head, panX) {
       if (!this.ctx || this.muted) return;
       const rate = (head ? 1.06 : 0.96) + (Math.random() * 0.05 - 0.025);
-      if (this._playBank("ugh", rate, 0.95)) return;
+      if (this._playBank("ugh", rate, 0.95, panX)) return;
       const now = this.ctx.currentTime;
       const pitch = (head ? 155 : 118) + Math.random() * 14;
       const o = this.ctx.createOscillator();
@@ -487,12 +520,54 @@
       o.connect(bp);
       o2.connect(bp);
       bp.connect(e);
-      e.connect(this._out(1));
+      e.connect(this._out(1, panX));
       o.start(now);
       o2.start(now);
       o.stop(now + 0.28);
       o2.stop(now + 0.26);
-      this.noise(0.11, 0.16, 180, 1100, 0.9);
+      this.noise(0.11, 0.16, 180, 1100, 0.9, panX);
+    }
+
+    tumbleweedCrunch(panX) {
+      if (!this.ctx || this.muted) return;
+      this.noise(0.16, 0.32, 800, 6000, 0.7, panX);
+      this.tone(880, 0.05, "triangle", 0.14, 280, 0.7, panX);
+      this.tone(1350, 0.035, "sine", 0.09, 500, 0.7, panX);
+    }
+
+    lanternShatter(panX) {
+      if (!this.ctx || this.muted) return;
+      this.tone(2600, 0.22, "sine", 0.18, 1200, 0.6, panX);
+      this.tone(3400, 0.12, "triangle", 0.11, 1600, 0.6, panX);
+      this.noise(0.22, 0.26, 2500, 12000, 0.75, panX);
+    }
+
+    whiz(panX) {
+      if (!this.ctx || this.muted) return;
+      this.tone(1750, 0.14, "sine", 0.08, 380, 0.8, panX);
+      this.noise(0.1, 0.12, 900, 4500, 0.8, panX);
+    }
+
+    hatPopPlink(panX) {
+      if (!this.ctx || this.muted) return;
+      this.tone(1680, 0.22, "triangle", 0.2, 1050, 1, panX);
+      this.tone(2480, 0.12, "sine", 0.15, 1750, 1, panX);
+      this.noise(0.04, 0.12, 3000, 9000, 0.9, panX);
+    }
+
+    deadeyeWhoosh() {
+      if (!this.ctx || this.muted) return;
+      this.tone(160, 0.7, "sine", 0.38, 26, 1);
+      this.noise(0.42, 0.28, 35, 450, 1);
+    }
+
+    bountyStinger(combo) {
+      if (!this.ctx || this.muted) return;
+      const c = Math.min(4, combo || 1);
+      const notes = [392, 523, 659, 784, 1046];
+      const baseNote = notes[c - 1] || 523;
+      this.tone(baseNote, 0.18, "triangle", 0.15);
+      this.tone(baseNote * 1.5, 0.25, "sine", 0.12, null, 1);
     }
 
     hurt() {

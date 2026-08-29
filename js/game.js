@@ -74,6 +74,7 @@
     aiming: false,
     pointerId: null,
     aim: { x: 360, y: 640 },
+    aimTarget: { x: 360, y: 640 },
     muzzle: { x: 360, y: 1172 },
     entities: [],
     bullet: null,
@@ -110,6 +111,19 @@
     stash: null,
     installPrompt: null,
     coached: false,
+    gunsmith: "blued",
+    tumbleweeds: [],
+    tumbleweedTimer: 3.2,
+    killCam: null,
+    bounty: {
+      wave: 1,
+      cash: 0,
+      streak: 0,
+      multiplier: 1.0,
+      highBounty: 0,
+      wavePerfect: true,
+      kills: 0,
+    },
   };
 
   function loadSave() {
@@ -120,6 +134,8 @@
       state.stars = Array.isArray(s.stars) ? s.stars : [];
       if (s.run && typeof s.run.level === "number") state.run = s.run;
       state.coached = !!(s.coached || (s.unlocked || 0) > 0);
+      state.gunsmith = localStorage.getItem("gw.save.gunsmith") || "blued";
+      state.bounty.highBounty = parseInt(localStorage.getItem("gw.save.bounty") || "0", 10);
     } catch (e) {
       state.stars = [];
     }
@@ -131,7 +147,32 @@
       $("scoreEl").textContent = fmt(state.score);
       renderHearts();
     }
+    updateGunsmithUI();
     paintTitle();
+  }
+
+  function setGunsmithSkin(skin) {
+    state.gunsmith = skin;
+    try {
+      localStorage.setItem("gw.save.gunsmith", skin);
+    } catch (_) {}
+    updateGunsmithUI();
+    audio.cock();
+  }
+
+  function updateGunsmithUI() {
+    const chips = document.querySelectorAll(".gun-chip");
+    chips.forEach((c) => {
+      c.classList.toggle("active", c.dataset.skin === state.gunsmith);
+    });
+  }
+
+  function updateBountyHUD() {
+    const hud = $("bounty-hud");
+    if (!hud) return;
+    hud.hidden = state.mode !== "bounty";
+    $("bounty-cash").textContent = "$" + fmt(state.bounty.cash);
+    $("bounty-mult").textContent = state.bounty.multiplier.toFixed(1) + "x";
   }
 
   function save() {
@@ -424,7 +465,10 @@
   }
 
   function aimDir() {
-    return { x: state.aim.x - state.muzzle.x, y: state.aim.y - state.muzzle.y };
+    const dx = state.aim.x - state.muzzle.x;
+    const dy = state.aim.y - state.muzzle.y;
+    const safeDy = Math.min(-160, dy);
+    return { x: dx, y: safeDy };
   }
 
   function currentTrace() {
@@ -538,7 +582,7 @@
   }
 
   function fire() {
-    if (state.mode !== "fight" || state.bullet || state.reloading > 0) return;
+    if ((state.mode !== "fight" && state.mode !== "bounty") || state.bullet || state.reloading > 0) return;
     if (state.ammo <= 0) {
       audio.click();
       stamp("EMPTY");
@@ -549,6 +593,27 @@
     const pts = densify(trace.path, 10);
     state.ammo -= 1;
     state.sceneShots += 1;
+
+    // Check if this shot eliminates the last living enemy for Cinematic Kill-Cam
+    const enemies = living();
+    const isLastLethal =
+      enemies.length === 1 &&
+      trace.end &&
+      trace.end.hit &&
+      trace.end.hit.body &&
+      (trace.end.hit.body.tag === "body" || trace.end.hit.body.tag === "head");
+
+    if (isLastLethal) {
+      state.killCam = {
+        active: true,
+        target: enemies[0],
+        zoom: 1.52,
+        t: 0,
+      };
+      audio.deadeyeWhoosh();
+      $("bt-veil").classList.add("killcam");
+    }
+
     state.bullet = {
       pts,
       dist: 0,
@@ -561,14 +626,14 @@
     state.aiming = false;
     state.ghost = null;
     audio.stopHeart();
-    if (!audio.gunshot()) audio.slam();
+    if (!audio.gunshot(360)) audio.slam();
     rumblePat([8, 40, 36, 20, 18]);
     flash();
     state.shake = 16;
     state.muzzleFlash = 0.13;
     state.recoil = 1;
     state.cylKick = 1;
-    state.timeScale = 0.12;
+    state.timeScale = state.killCam ? 0.035 : 0.12;
     const tip = barrelTip();
     burst(tip.x, tip.y, "#f3d48a", 14, 260);
     spawnCasing();
@@ -596,12 +661,12 @@
   }
 
   function spawnSmoke(x, y) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       state.smoke.push({
         x: x + (Math.random() - 0.5) * 16,
         y: y + (Math.random() - 0.5) * 10,
-        vx: (Math.random() - 0.5) * 18,
-        vy: -12 - Math.random() * 18,
+        vx: (Math.random() - 0.5) * 20,
+        vy: -14 - Math.random() * 22,
         r: 10 + Math.random() * 14,
         age: 0,
         life: 1.35 + Math.random() * 0.45,
@@ -630,25 +695,41 @@
     e.hp -= head ? 2 : 1;
     e.flash = 0.12;
     e.hurt = 0.2;
-    state.hitstop = (bounces >= 1 ? 0.1 : 0) + (head ? 0.12 : 0.1);
-    state.shake = 16;
-    audio.ugh(head);
+    state.hitstop = (bounces >= 1 ? 0.12 : 0) + (head ? 0.14 : 0.1);
+    state.shake = 18;
+    audio.ugh(head, e.x);
     rumblePat(head ? [6, 18, 8, 40, 50] : [8, 14, 10, 32, 36]);
-    burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 22 : 16, 240);
+    burst(hit.x, hit.y, head ? "#e8c36a" : "#8b1e1e", head ? 24 : 18, 260);
     if (e.hp <= 0) {
       e.dead = true;
       e.fall = 0.01;
       setTimeout(function () {
-        audio.thud();
+        audio.thud(e.x);
       }, 180);
       spawnHat(e);
       state.sceneKills += 1;
       if (chainIndex > 0) state.sceneChains += 1;
-      const style = styleName(bounces, head, chainIndex);
+
+      const hitType = hit.body && hit.body.ent && hit.body.ent.type;
+      const isFastDraw = state.fightT < 1.45;
+      const style = styleName(bounces, head, chainIndex, hitType, isFastDraw);
       const pay = 120 + bounces * 160 + (head ? 220 : 0) + (chainIndex > 0 ? 280 : 0);
       state.score += pay;
       $("scoreEl").textContent = fmt(state.score);
+
+      if (state.mode === "bounty") {
+        state.bounty.kills += 1;
+        state.bounty.streak += 1;
+        if (bounces >= 1 || head || chainIndex > 0) {
+          state.bounty.multiplier = Math.min(4.0, +(state.bounty.multiplier + 0.5).toFixed(1));
+        }
+        const killCash = Math.round(150 * state.bounty.multiplier);
+        state.bounty.cash += killCash;
+        updateBountyHUD();
+      }
+
       state.pendingStamp = { text: style, t: 0.28 };
+      audio.bountyStinger(bounces + (head ? 1 : 0) + (chainIndex > 0 ? 1 : 0));
       state.camFocus = e;
       state.camHold = bounces >= 1 ? 0.98 : 0.78;
       return true;
@@ -657,16 +738,18 @@
     return false;
   }
 
-  function styleName(bounces, head, chainIndex) {
-    if (chainIndex > 0 && bounces >= 2) return "IMPOSSIBLE";
-    if (chainIndex > 0) return "TWO NAMES";
-    if (bounces >= 3 && head) return "IMPOSSIBLE";
-    if (bounces >= 3) return "TRICK SHOT";
-    if (bounces === 2) return "DOUBLE BANK";
-    if (bounces === 1 && head) return "DEAD EYE";
-    if (bounces === 1) return "BANK SHOT";
-    if (head) return "DEAD EYE";
-    return "CLEAN";
+  function styleName(bounces, head, chainIndex, hitType, isFastDraw) {
+    if (bounces >= 3) return "TRIPLE RICOCHET!";
+    if (chainIndex > 0 && bounces >= 2) return "IMPOSSIBLE BANK!";
+    if (chainIndex > 0) return "DOUBLE COLLATERAL!";
+    if (bounces === 2) return "DOUBLE BANK!";
+    if (hitType === "pan" && bounces >= 1) return "SKILLET SLAM!";
+    if (hitType === "barrel" && bounces >= 1) return "BARREL BOUNCE!";
+    if (bounces === 1 && head) return "BANK HEADSHOT!";
+    if (bounces === 1) return "BANK SHOT!";
+    if (head) return "HAT POP / HEADSHOT!";
+    if (isFastDraw) return "DEADEYE!";
+    return "CLEAN DRAW!";
   }
 
   function living() {
@@ -730,6 +813,180 @@
     paintTitle();
   }
 
+  function startBountyMode() {
+    audio.unlock();
+    closeMenu();
+    state.mode = "bounty";
+    state.replay = false;
+    state.stash = null;
+    state.lives = 3;
+    state.score = 0;
+    state.ammo = 6;
+    state.bounty = {
+      wave: 1,
+      cash: 0,
+      streak: 0,
+      multiplier: 1.0,
+      highBounty: parseInt(localStorage.getItem("gw.save.bounty") || "0", 10),
+      wavePerfect: true,
+      kills: 0,
+    };
+    $("scoreEl").textContent = "0";
+    renderHearts();
+    $("overlay-title").hidden = true;
+    $("overlay-brief").hidden = true;
+    $("overlay-end").hidden = true;
+    $("overlay-how").hidden = true;
+    document.body.classList.remove("on-title");
+    showHomeBtn(true);
+    updateBountyHUD();
+    startBountyWave(1);
+  }
+
+  function startBountyWave(wave) {
+    state.bounty.wave = wave;
+    state.bounty.wavePerfect = true;
+    state.ammo = 6;
+    state.sceneShots = 0;
+    state.sceneChains = 0;
+    state.sceneKills = 0;
+    state.fightT = 0;
+    state.hintT = 2.4;
+    resetCam();
+
+    const bgList = ["street", "saloon", "canyon", "depot", "gallows"];
+    const currentBg = bgList[(wave - 1) % bgList.length];
+    const enemyCount = Math.min(4, 1 + Math.floor((wave - 1) / 2));
+    const drawBase = Math.max(2.4, 7.8 - wave * 0.28);
+
+    const ents = [];
+    if (wave >= 2) {
+      ents.push({ type: "crate", x: 360, y: 820, s: 1.15 });
+      ents.push({ type: "pan", x: 590, y: 530, s: 1.1, swing: 40 + Math.min(25, wave * 3), period: 3.0 });
+    }
+    if (wave >= 3) {
+      ents.push({ type: "barrel", x: 120, y: 640, s: 1.1 });
+    }
+    if (wave >= 4) {
+      ents.push({ type: "sign", x: 610, y: 610, h: 190 });
+    }
+    if (wave >= 5) {
+      ents.push({ type: "fence", x0: 240, x1: 480, y: 780 });
+    }
+
+    const xPositions =
+      enemyCount === 1 ? [360] : enemyCount === 2 ? [260, 490] : enemyCount === 3 ? [200, 360, 520] : [170, 290, 440, 560];
+    const speciesList = ["outlaw", "sharp", "marshal"];
+
+    for (let i = 0; i < enemyCount; i++) {
+      const spec = speciesList[Math.min(speciesList.length - 1, Math.floor(Math.random() * (1 + Math.floor(wave / 2))))];
+      ents.push({
+        type: "enemy",
+        x: xPositions[i],
+        y: 400 + (i % 2) * 30,
+        species: spec,
+        draw: drawBase + (Math.random() * 0.8 - 0.4),
+        peek: wave >= 3 && i > 0,
+        coverX: xPositions[i],
+        coverY: 690,
+        peekOff: i * 0.4,
+      });
+    }
+
+    state.entities = ents.map((raw) => {
+      const e = Object.assign(
+        {
+          id: uid(raw.type),
+          s: 1,
+          spin: 0,
+          spinV: 0,
+          hp: 1,
+          hurt: 0,
+          fall: 0,
+          hidden: false,
+          peekT: raw.peekOff || 0,
+          paceDir: 1,
+          phase: 0,
+        },
+        raw
+      );
+      e.homeX = e.x;
+      e.homeY = e.y;
+      if (e.type === "enemy") {
+        e.drawT = 0;
+        e.drawMax = e.draw || 7;
+        e.hp = e.hp || 1;
+        e.dead = false;
+        e.flash = 0;
+      }
+      if (e.type === "pan" && e.swing) {
+        e.anchorX = e.x;
+        e.anchorY = e.y;
+      }
+      return e;
+    });
+
+    state.ghost = null;
+    state.bullet = null;
+    state.tumbleweeds = [];
+
+    $("chapter").textContent = "WAVE " + wave;
+    $("hint").textContent = "WAVE " + wave + " — ELIMINATE ALL OUTLAWS";
+    $("hint").classList.add("show");
+    stamp("WAVE " + wave);
+    updateBountyHUD();
+    state.mode = "bounty";
+  }
+
+  function bountyWaveClear() {
+    const wave = state.bounty.wave;
+    const basePay = 250 * wave;
+    const streakPay = state.bounty.streak * 100;
+    const perfectPay = state.bounty.wavePerfect ? 500 : 0;
+    const waveCash = Math.round((basePay + streakPay + perfectPay) * state.bounty.multiplier);
+
+    state.bounty.cash += waveCash;
+    state.score += waveCash;
+    $("scoreEl").textContent = fmt(state.score);
+
+    if (state.bounty.cash > state.bounty.highBounty) {
+      state.bounty.highBounty = state.bounty.cash;
+      try {
+        localStorage.setItem("gw.save.bounty", state.bounty.highBounty);
+      } catch (_) {}
+    }
+
+    updateBountyHUD();
+    audio.sting(true);
+    rumble(40);
+    stamp("WAVE " + wave + " CLEARED! +$" + fmt(waveCash));
+
+    setTimeout(() => {
+      if (state.mode === "bounty" && state.lives > 0) {
+        startBountyWave(wave + 1);
+      }
+    }, 1200);
+  }
+
+  function bountyGameOver() {
+    state.mode = "end";
+    resetCam();
+    audio.sting(false);
+
+    const isRecord = state.bounty.cash >= state.bounty.highBounty && state.bounty.cash > 0;
+    $("end-kicker").textContent = isRecord ? "★ NEW RECORD ★" : "BOUNTY HUNT OVER";
+    $("end-name").textContent = "$" + fmt(state.bounty.cash);
+    $("end-stars").textContent = "";
+    $("end-detail").textContent =
+      "Survived " + (state.bounty.wave - 1) + " waves. High Bounty: $" + fmt(state.bounty.highBounty) + ".";
+
+    $("btn-next").hidden = false;
+    $("btn-next").textContent = "MAIN MENU";
+    $("btn-retry").textContent = "HUNT AGAIN";
+    $("overlay-end").hidden = false;
+    updateBountyHUD();
+  }
+
   function playerHit() {
     state.lives -= 1;
     renderHearts();
@@ -739,6 +996,20 @@
     flash();
     stamp("THEY DREW");
     resetCam();
+
+    if (state.mode === "bounty") {
+      state.bounty.wavePerfect = false;
+      state.bounty.streak = 0;
+      state.bounty.multiplier = 1.0;
+      updateBountyHUD();
+      if (state.lives <= 0) {
+        bountyGameOver();
+        return;
+      }
+      startBountyWave(state.bounty.wave);
+      return;
+    }
+
     if (state.lives <= 0) {
       audio.sting(false);
       state.mode = "end";
@@ -962,9 +1233,9 @@
     let tr = 0;
     if (state.bullet) {
       const p = pointAt(state.bullet.pts, state.bullet.dist);
-      tx = p.x;
-      ty = p.y + 40;
-      tz = 1.34;
+      tx = p ? p.x : VW / 2;
+      ty = (p ? p.y : VH / 2) + (state.killCam ? 15 : 40);
+      tz = state.killCam ? 1.55 : 1.34;
       tr = state.cam.roll * 0.85;
     } else if (state.camHold > 0 && state.camFocus) {
       state.camHold -= dt;
@@ -972,12 +1243,66 @@
       ty = state.camFocus.y - 90;
       tz = 1.42;
     }
-    const k = Math.min(1, dt * (state.bullet ? 6 : 4.2));
+    const k = Math.min(1, dt * (state.bullet ? (state.killCam ? 8.5 : 6) : 4.2));
     state.cam.x += (tx - state.cam.x) * k;
     state.cam.y += (ty - state.cam.y) * k;
     state.cam.z += (tz - state.cam.z) * k;
     state.cam.roll += (tr - state.cam.roll) * Math.min(1, dt * 4);
     state.cam.roll *= Math.pow(0.12, dt);
+  }
+
+  function updateTumbleweeds(wdt, dt) {
+    if (state.mode !== "fight" && state.mode !== "bounty" && state.mode !== "title") return;
+    state.tumbleweedTimer -= dt;
+    if (state.tumbleweedTimer <= 0) {
+      state.tumbleweedTimer = 4.2 + Math.random() * 6.0;
+      const fromLeft = Math.random() > 0.5;
+      state.tumbleweeds.push({
+        x: fromLeft ? -40 : VW + 40,
+        y: 840 + Math.random() * 120,
+        vx: fromLeft ? 110 + Math.random() * 90 : -(110 + Math.random() * 90),
+        vy: -30 - Math.random() * 60,
+        r: 22 + Math.random() * 16,
+        rot: Math.random() * Math.PI * 2,
+        vr: fromLeft ? 3 + Math.random() * 3.5 : -(3 + Math.random() * 3.5),
+        seed: Math.random() * 100,
+      });
+    }
+
+    for (let i = state.tumbleweeds.length - 1; i >= 0; i--) {
+      const tw = state.tumbleweeds[i];
+      tw.x += tw.vx * wdt;
+      tw.vy += 340 * wdt;
+      tw.y += tw.vy * wdt;
+      tw.rot += tw.vr * wdt;
+      const floorY = 960 + Math.sin(tw.x * 0.01) * 20;
+      if (tw.y + tw.r > floorY) {
+        tw.y = floorY - tw.r;
+        tw.vy = -Math.abs(tw.vy) * 0.55;
+      }
+      if (tw.x < -80 || tw.x > VW + 80 || tw.y > VH + 50) {
+        state.tumbleweeds.splice(i, 1);
+      }
+    }
+  }
+
+  function checkBulletTumbleweeds(b) {
+    const pt = pointAt(b.pts, b.dist);
+    if (!pt) return;
+    for (let i = state.tumbleweeds.length - 1; i >= 0; i--) {
+      const tw = state.tumbleweeds[i];
+      if (Math.hypot(pt.x - tw.x, pt.y - tw.y) < tw.r + 18) {
+        audio.tumbleweedCrunch(tw.x);
+        burst(tw.x, tw.y, "#c4a574", 26, 280);
+        burst(tw.x, tw.y, "#8c6941", 18, 180);
+        state.tumbleweeds.splice(i, 1);
+        state.score += 100;
+        $("scoreEl").textContent = fmt(state.score);
+        stamp("TUMBLEWEED SNIPER +100");
+        rumble(12);
+        break;
+      }
+    }
   }
 
   function update(dt) {
@@ -987,15 +1312,19 @@
     }
 
     let targetScale = 1;
-    if (state.mode === "fight") {
+    if (state.mode === "fight" || state.mode === "bounty") {
       if (state.aiming) {
         state.aimWarm += dt;
         targetScale = state.aimWarm < 0.15 ? 0.42 : 0.052;
-      } else if (state.bullet) targetScale = 0.14;
+      } else if (state.bullet) {
+        targetScale = state.killCam ? 0.035 : 0.14;
+      }
     }
     const rising = targetScale > state.timeScale;
     state.timeScale += (targetScale - state.timeScale) * Math.min(1, dt * (rising ? 4.2 : 16));
     $("bt-veil").classList.toggle("on", state.timeScale < 0.55);
+    if (state.killCam) $("bt-veil").classList.add("killcam");
+    else $("bt-veil").classList.remove("killcam");
     audio.setTension(state.timeScale < 0.55 ? 1 : 0);
 
     const wdt = dt * state.timeScale;
@@ -1028,6 +1357,7 @@
 
     state.shake *= Math.pow(0.04, dt);
     updateStreet(wdt);
+    updateTumbleweeds(wdt, dt);
     updateCam(dt);
 
     for (const e of state.entities) {
@@ -1100,7 +1430,11 @@
       if (p.age >= p.life) state.particles.splice(i, 1);
     }
 
-    if (state.mode === "fight" && state.aiming && !state.bullet) {
+    if ((state.mode === "fight" || state.mode === "bounty") && state.aiming && !state.bullet) {
+      if (state.aimTarget) {
+        state.aim.x += (state.aimTarget.x - state.aim.x) * Math.min(1, dt * 50);
+        state.aim.y += (state.aimTarget.y - state.aim.y) * Math.min(1, dt * 50);
+      }
       const tr = currentTrace();
       state.preview = tr;
       const lethal = tr.end && tr.end.body && tr.end.body.tag;
@@ -1119,7 +1453,7 @@
       audio.stopHeart();
     }
 
-    if (state.mode === "fight" && !state.bullet && $("overlay-how").hidden) {
+    if ((state.mode === "fight" || state.mode === "bounty") && !state.bullet && $("overlay-how").hidden) {
       for (const e of living()) {
         if (e.hidden) continue;
         e.drawT += wdt;
@@ -1134,6 +1468,7 @@
       const b = state.bullet;
       const prev = b.dist;
       b.dist += 820 * dt;
+      checkBulletTumbleweeds(b);
       const now = pointAt(b.pts, b.dist);
       for (const ev of b.events) {
         if (ev.dist > prev && ev.dist <= b.dist + 0.01) {
@@ -1141,7 +1476,8 @@
             const hitType = ev.hit.body && ev.hit.body.ent && ev.hit.body.ent.type;
             audio.ping(
               ev.bounce,
-              hitType === "pan" ? "pan" : hitType === "sign" ? "plate" : hitType === "barrel" ? "barrel" : null
+              hitType === "pan" ? "pan" : hitType === "sign" ? "plate" : hitType === "barrel" ? "barrel" : null,
+              ev.hit.x
             );
             rumblePat([4, 22, 8]);
             burst(ev.hit.x, ev.hit.y, "#f4e0a8", 20, 300);
@@ -1155,7 +1491,7 @@
             const died = applyKill(ev.hit, b.bounces, b.kills);
             if (died) b.kills += 1;
           } else if (ev.kind === "absorb") {
-            audio.wood();
+            audio.wood(ev.hit.x);
             rumblePat([18, 12, 10]);
             burst(ev.hit.x, ev.hit.y, "#c4a574", 16, 140);
             if (ev.hit.body && ev.hit.body.ent) {
@@ -1170,13 +1506,21 @@
         if (b.kills === 0 && last.hit && last.hit.body && last.hit.body.tag) {
           applyKill(last.hit, b.bounces, 0);
         } else if (b.kills === 0) {
-          audio.dust();
+          audio.dust(last ? last.x : 360);
           stamp("DUST");
           state.ghost = { pts: b.pts, t: 1.05 };
         }
         state.bullet = null;
+        if (state.killCam) {
+          state.killCam = null;
+          $("bt-veil").classList.remove("killcam");
+        }
         if (living().length === 0) {
-          setTimeout(sceneClear, 820);
+          if (state.mode === "bounty") {
+            setTimeout(bountyWaveClear, 800);
+          } else {
+            setTimeout(sceneClear, 820);
+          }
         } else if (state.ammo <= 0) {
           startReload();
         }
@@ -1185,7 +1529,7 @@
 
     audio.tickTheme(dt, state.mode === "title");
     const L = GW.LEVELS[state.level];
-    const openStreet = state.mode === "fight" && L && L.bg !== "saloon";
+    const openStreet = (state.mode === "fight" || state.mode === "bounty") && (!L || L.bg !== "saloon");
     audio.tickGust(dt, openStreet);
   }
 
@@ -1329,7 +1673,8 @@
       if (e.type === "enemy") drawEnemy(e);
       else drawProp(e);
     }
-    if (state.mode === "fight" && state.aiming) drawMetalGlow();
+    drawTumbleweeds();
+    if ((state.mode === "fight" || state.mode === "bounty") && state.aiming) drawMetalGlow();
     drawCasings();
     drawHats();
     drawSmoke();
@@ -1657,11 +2002,9 @@
     if (!trace || !trace.path) return;
     const all = densify(trace.path, 12);
     if (all.length < 2) return;
-    const tip = barrelTip();
-    const pts = [{ x: tip.x, y: tip.y, bounce: 0 }].concat(all);
-    const segs = splitByBounce(pts);
+    const segs = splitByBounce(all);
     for (let i = 0; i < segs.length; i++) strokePoly(c, segs[i], 1, i > 0);
-    const last = pts[pts.length - 1];
+    const last = all[all.length - 1];
     c.save();
     c.strokeStyle = "#fff6c4";
     c.lineWidth = 2.6;
@@ -1672,7 +2015,7 @@
     c.lineTo(last.x, last.y + 10);
     c.stroke();
     c.restore();
-    for (const p of pts) {
+    for (const p of all) {
       if (p.hit && p.hit.material && P.MATERIALS[p.hit.material] && P.MATERIALS[p.hit.material].spark) {
         c.fillStyle = "#fff4c8";
         c.beginPath();
@@ -1691,7 +2034,7 @@
     if (!sctx || !sight) return;
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.clearRect(0, 0, sight.width, sight.height);
-    if (state.mode !== "fight") return;
+    if (state.mode !== "fight" && state.mode !== "bounty") return;
     const v = state.view;
     const cam = state.cam;
     sctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
@@ -1699,8 +2042,11 @@
     sctx.rotate(cam.roll);
     sctx.scale(cam.z, cam.z);
     sctx.translate(-cam.x, -cam.y);
-    if (state.aiming) drawPath(sctx);
-    if (state.ghost) strokePoly(sctx, state.ghost.pts, 0.35 * Math.max(0, state.ghost.t));
+    if (state.aiming) {
+      drawPath(sctx);
+    } else if (state.ghost) {
+      strokePoly(sctx, state.ghost.pts, 0.35 * Math.max(0, state.ghost.t));
+    }
     if (state.aiming) {
       if (state.preview && state.preview.end && state.preview.end.body && state.preview.end.body.ent) {
         const t = state.preview.end.body.ent;
@@ -1804,29 +2150,59 @@
   }
 
   function drawGun() {
-    const ang = Math.atan2(state.aim.y - state.muzzle.y, state.aim.x - state.muzzle.x);
+    const dir = aimDir();
+    const ang = Math.atan2(dir.y, dir.x);
     const tilt = ang + Math.PI / 2;
     const cocked = state.aiming ? 1 : 0;
     const rec = state.recoil || 0;
     const img = images.revolver;
+    const skin = state.gunsmith || "blued";
+
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.translate(360, VH - 8 + cocked * 10 + rec * 18);
     ctx.rotate(tilt * 0.55 - cocked * 0.09 + rec * 0.12);
+
+    if (skin === "silver") {
+      ctx.filter = "contrast(1.25) brightness(1.3) saturate(0.2)";
+    } else if (skin === "gold") {
+      ctx.filter = "sepia(0.8) saturate(2.6) brightness(1.18) contrast(1.1)";
+    } else if (skin === "charred") {
+      ctx.filter = "contrast(1.6) brightness(0.65) saturate(0.35)";
+    }
+
     if (img) {
       const h = 260;
       const w = (img.width / img.height) * h;
       ctx.drawImage(img, -w * 0.5, -h + 16, w, h);
+
+      if (skin === "gold") {
+        ctx.save();
+        ctx.globalCompositeOperation = "color-dodge";
+        ctx.strokeStyle = "rgba(255, 235, 150, 0.4)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -h * 0.45, 12, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (skin === "charred") {
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 60, 20, 0.45)";
+        for (let i = 0; i < 4; i++) {
+          ctx.fillRect(-10 + i * 5, -h * 0.38, 2, 7);
+        }
+        ctx.restore();
+      }
     } else {
-      ctx.fillStyle = "#2a2420";
+      ctx.fillStyle = skin === "gold" ? "#c49a34" : skin === "silver" ? "#a8b2b8" : "#2a2420";
       ctx.fillRect(-18, -160, 36, 150);
     }
     ctx.restore();
   }
 
   function drawEnemyMeters() {
-    if (state.mode !== "fight") return;
+    if (state.mode !== "fight" && state.mode !== "bounty") return;
     for (const e of living()) {
       if (e.hidden) continue;
       const t = Math.max(0, Math.min(1, e.drawT / e.drawMax));
@@ -2035,20 +2411,23 @@
   }
 
   function onDown(ev) {
-    if (state.mode !== "fight") return;
-    if (ev.target.closest && ev.target.closest("#btn-menu, #menu, #menu-scrim, #cylinder-wrap, .overlay, button, #star-strip")) return;
+    if (state.mode !== "fight" && state.mode !== "bounty") return;
+    if (
+      ev.target.closest &&
+      ev.target.closest("#btn-menu, #menu, #menu-scrim, #cylinder-wrap, .overlay, button, #star-strip, #portrait-wrap, #hat-hitbox")
+    )
+      return;
     ev.preventDefault();
+    state.pointerId = ev.pointerId != null ? ev.pointerId : null;
     const t = ev.touches ? ev.touches[0] : ev;
-    if (ev.pointerId != null && ev.target.setPointerCapture) {
-      try {
-        ev.target.setPointerCapture(ev.pointerId);
-      } catch (err) {}
-    }
     const w = clientToWorld(t.clientX, t.clientY);
     state.cam.x = VW / 2;
     state.cam.y = VH / 2;
     state.cam.z = 1;
     state.cam.roll = 0;
+    state.camHold = 0;
+    state.camFocus = null;
+    state.ghost = null;
     state.aiming = true;
     state.aimWarm = 0;
     markCoached();
@@ -2056,23 +2435,31 @@
     audio.unlock();
     audio.cock();
     rumblePat([5, 10, 4]);
-    state.aim.x = clamp(w.x, 20, 700);
-    state.aim.y = clamp(w.y, 20, 1120);
+    const clampedX = clamp(w.x, 20, 700);
+    const clampedY = clamp(w.y, 20, 1120);
+    state.aim.x = clampedX;
+    state.aim.y = clampedY;
+    state.aimTarget = { x: clampedX, y: clampedY };
     $("hold-cue").style.opacity = "0";
     $("hint").classList.remove("show");
   }
 
   function onMove(ev) {
     if (!state.aiming) return;
+    if (state.pointerId != null && ev.pointerId != null && ev.pointerId !== state.pointerId) return;
     ev.preventDefault();
     const t = ev.touches ? ev.touches[0] : ev;
     const w = clientToWorld(t.clientX, t.clientY);
-    state.aim.x = clamp(w.x, 20, 700);
-    state.aim.y = clamp(w.y, 20, 1120);
+    state.aimTarget = {
+      x: clamp(w.x, 20, 700),
+      y: clamp(w.y, 20, 1120),
+    };
   }
 
   function onUp(ev) {
     if (!state.aiming) return;
+    if (state.pointerId != null && ev.pointerId != null && ev.pointerId !== state.pointerId) return;
+    state.pointerId = null;
     ev.preventDefault();
     fire();
   }
@@ -2113,15 +2500,49 @@
   function bind() {
     const stage = $("stage");
     stage.addEventListener("pointerdown", onDown);
-    stage.addEventListener("pointermove", onMove);
-    stage.addEventListener("pointerup", onUp);
-    stage.addEventListener("pointercancel", onUp);
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp, { passive: false });
+    window.addEventListener("pointercancel", onUp, { passive: false });
     stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
     $("btn-start").addEventListener("click", () => {
       if (hasRun() && state.unlocked < GW.LEVELS.length) resumeRun();
       else beginRun(state.unlocked > 0 ? continueLevel() : 0);
     });
+
+    const btnBountyStart = $("btn-bounty-start");
+    if (btnBountyStart) {
+      btnBountyStart.addEventListener("click", startBountyMode);
+    }
+
+    const btnBountyMode = $("btn-bounty-mode");
+    if (btnBountyMode) {
+      btnBountyMode.addEventListener("click", startBountyMode);
+    }
+
+    document.querySelectorAll(".gun-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        setGunsmithSkin(chip.dataset.skin);
+      });
+    });
+
+    const hatHit = $("hat-hitbox") || $("portrait-wrap");
+    if (hatHit) {
+      hatHit.addEventListener("pointerdown", (e) => {
+        e.stopPropagation();
+        const p = $("portrait");
+        if (!p || p.classList.contains("hat-popping")) return;
+        p.classList.add("hat-popping");
+        audio.unlock();
+        audio.hatPopPlink(360);
+        burst(360, 310, "#e8c36a", 16, 200);
+        rumblePat([8, 14, 8]);
+        setTimeout(() => {
+          p.classList.remove("hat-popping");
+        }, 750);
+      });
+    }
+
     $("btn-new").addEventListener("click", () => {
       closeMenu();
       beginRun(0);
@@ -2132,6 +2553,10 @@
     });
     $("btn-next").addEventListener("click", () => {
       $("overlay-end").hidden = true;
+      if (state.mode === "end" && $("btn-next").textContent === "MAIN MENU") {
+        goHome();
+        return;
+      }
       if (state.replay) {
         endReplay();
         goHome();
@@ -2157,6 +2582,10 @@
     });
     $("btn-retry").addEventListener("click", () => {
       $("overlay-end").hidden = true;
+      if (state.mode === "end" && $("btn-retry").textContent === "HUNT AGAIN") {
+        startBountyMode();
+        return;
+      }
       if (state.lives <= 0) {
         if (state.replay) {
           state.lives = 3;
@@ -2214,7 +2643,7 @@
     });
     $("btn-how-close").addEventListener("click", () => {
       $("overlay-how").hidden = true;
-      if (state.mode === "fight" && !state.aiming && !state.bullet) showCoach(needsCoach());
+      if ((state.mode === "fight" || state.mode === "bounty") && !state.aiming && !state.bullet) showCoach(needsCoach());
     });
     $("btn-mute").addEventListener("click", () => {
       audio.unlock();
@@ -2224,12 +2653,12 @@
     });
     $("cylinder-wrap").addEventListener("click", (e) => {
       e.stopPropagation();
-      if (state.mode === "fight") startReload();
+      if (state.mode === "fight" || state.mode === "bounty") startReload();
     });
     window.addEventListener("resize", fit);
     window.addEventListener("keydown", (e) => {
       if (e.code === "Escape") closeMenu();
-      if (e.code === "Space" && state.mode === "fight") {
+      if (e.code === "Space" && (state.mode === "fight" || state.mode === "bounty")) {
         e.preventDefault();
         if (!state.aiming && !state.bullet) {
           state.aiming = true;
@@ -2240,7 +2669,7 @@
           audio.startHeart();
         }
       }
-      if (e.code === "KeyR" && state.mode === "fight") startReload();
+      if (e.code === "KeyR" && (state.mode === "fight" || state.mode === "bounty")) startReload();
     });
     window.addEventListener("keyup", (e) => {
       if (e.code === "Space" && state.aiming) {
