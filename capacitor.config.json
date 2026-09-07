@@ -1,0 +1,25 @@
+{
+  "appId": "uk.co.mozzer.bjango",
+  "appName": "Bjango",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#100a07"
+  },
+  "plugins": {
+    "AdMob": {
+      "appId": "ca-app-pub-0970861679884235~4548340358"
+    },
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "androidSplashResourceName": "splash",
+      "backgroundColor": "#100a07",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#100a07",
+      "overlaysWebView": true
+    }
+  }
+}

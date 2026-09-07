@@ -243,9 +243,18 @@
     );
   }
 
+  function isNativeApp() {
+    return !!(window.BJANGO_NATIVE || (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()));
+  }
+
   function paintInstall() {
     const help = $("install-help");
     const btn = $("btn-install");
+    if (isNativeApp()) {
+      if (btn) btn.hidden = true;
+      if (help) help.hidden = true;
+      return;
+    }
     const standalone = isStandaloneApp();
     if (btn) btn.hidden = standalone || !state.installPrompt;
     if (!help) return;
@@ -784,8 +793,7 @@
 
   function sceneClear() {
     const L = GW.LEVELS[state.level];
-    const leftover = 6 - state.ammo;
-    const bonus = Math.max(0, (L.par - leftover) * 200);
+    const bonus = Math.max(0, ((L.par || 3) - state.sceneShots) * 200);
     const chainBonus = state.sceneChains * 150;
     state.score += bonus + chainBonus;
     const rank = rankForScene();
@@ -830,6 +838,7 @@
     }
     $("overlay-end").hidden = false;
     paintTitle();
+    applyAdPlacement();
   }
 
   function startBountyMode() {
@@ -860,6 +869,7 @@
     showHomeBtn(true);
     updateBountyHUD();
     startBountyWave(1);
+    applyAdPlacement();
   }
 
   function startBountyWave(wave) {
@@ -968,12 +978,7 @@
     state.score += waveCash;
     $("scoreEl").textContent = fmt(state.score);
 
-    if (state.bounty.cash > state.bounty.highBounty) {
-      state.bounty.highBounty = state.bounty.cash;
-      try {
-        localStorage.setItem("gw.save.bounty", state.bounty.highBounty);
-      } catch (_) {}
-    }
+    saveHighBounty();
 
     updateBountyHUD();
     audio.sting(true);
@@ -987,12 +992,23 @@
     }, 1200);
   }
 
+  function saveHighBounty() {
+    if (state.bounty.cash > state.bounty.highBounty) {
+      state.bounty.highBounty = state.bounty.cash;
+      try {
+        localStorage.setItem("gw.save.bounty", String(state.bounty.highBounty));
+      } catch (_) {}
+    }
+  }
+
   function bountyGameOver() {
     state.mode = "end";
     resetCam();
     audio.sting(false);
 
-    const isRecord = state.bounty.cash >= state.bounty.highBounty && state.bounty.cash > 0;
+    const prevHigh = state.bounty.highBounty;
+    saveHighBounty();
+    const isRecord = state.bounty.cash > 0 && state.bounty.cash >= prevHigh;
     $("end-kicker").textContent = isRecord ? "★ NEW RECORD ★" : "BOUNTY HUNT OVER";
     $("end-name").textContent = "$" + fmt(state.bounty.cash);
     $("end-stars").textContent = "";
@@ -1004,6 +1020,7 @@
     $("btn-retry").textContent = "HUNT AGAIN";
     $("overlay-end").hidden = false;
     updateBountyHUD();
+    applyAdPlacement();
   }
 
   function playerHit() {
@@ -1078,6 +1095,7 @@
     $("overlay-end").hidden = true;
     state.mode = "brief";
     showHomeBtn(true);
+    applyAdPlacement();
   }
 
   function startFight() {
@@ -1088,6 +1106,7 @@
     state.mode = "fight";
     audio.whistle();
     showHomeBtn(true);
+    applyAdPlacement();
   }
 
   function continueLevel() {
@@ -1149,7 +1168,25 @@
     closeMenu();
     if (state.replay) endReplay();
     else if ((from === "fight" || from === "brief") && state.lives > 0) snapshotRun();
+    if (hasRun()) {
+      state.lives = state.run.lives;
+      state.score = state.run.score;
+    } else {
+      state.lives = 3;
+      state.score = 0;
+    }
+    $("scoreEl").textContent = fmt(state.score);
+    renderHearts();
+    updateBountyHUD();
     paintTitle();
+    applyAdPlacement();
+  }
+
+  function applyAdPlacement() {
+    if (!window.BjangoAds) return;
+    const shooting = state.mode === "fight" || state.mode === "bounty";
+    if (shooting) window.BjangoAds.hideBanner();
+    else window.BjangoAds.resumeBanner();
   }
 
   function paintTitle() {
@@ -1306,20 +1343,32 @@
     }
   }
 
+  function crunchTumbleweed(tw, x, y) {
+    if (!tw || tw.crunched) return false;
+    tw.crunched = true;
+    const idx = state.tumbleweeds.indexOf(tw);
+    if (idx >= 0) state.tumbleweeds.splice(idx, 1);
+    const px = x != null ? x : tw.x;
+    const py = y != null ? y : tw.y;
+    audio.tumbleweedCrunch(px);
+    burst(px, py, "#c4a574", 26, 280);
+    burst(px, py, "#8c6941", 18, 180);
+    burst(px, py, "#edd7a8", 16, 240);
+    state.score += 100;
+    $("scoreEl").textContent = fmt(state.score);
+    stamp("TUMBLEWEED SNIPER +100");
+    rumblePat([14, 18, 12]);
+    state.shake = 8;
+    return true;
+  }
+
   function checkBulletTumbleweeds(b) {
     const pt = pointAt(b.pts, b.dist);
     if (!pt) return;
     for (let i = state.tumbleweeds.length - 1; i >= 0; i--) {
       const tw = state.tumbleweeds[i];
       if (Math.hypot(pt.x - tw.x, pt.y - tw.y) < tw.r + 18) {
-        audio.tumbleweedCrunch(tw.x);
-        burst(tw.x, tw.y, "#c4a574", 26, 280);
-        burst(tw.x, tw.y, "#8c6941", 18, 180);
-        state.tumbleweeds.splice(i, 1);
-        state.score += 100;
-        $("scoreEl").textContent = fmt(state.score);
-        stamp("TUMBLEWEED SNIPER +100");
-        rumble(12);
+        crunchTumbleweed(tw, tw.x, tw.y);
         break;
       }
     }
@@ -1519,19 +1568,8 @@
               ev.hit.body.ent.lean = (ev.hit.body.ent.lean || 0) + 0.1;
             }
           } else if (ev.kind === "tumbleweed") {
-            audio.tumbleweedCrunch(ev.hit.x);
-            burst(ev.hit.x, ev.hit.y, "#c4a574", 28, 300);
-            burst(ev.hit.x, ev.hit.y, "#8c6941", 20, 200);
-            burst(ev.hit.x, ev.hit.y, "#edd7a8", 16, 240);
-            rumblePat([14, 18, 12]);
-            state.shake = 8;
-            state.score += 100;
-            $("scoreEl").textContent = fmt(state.score);
-            stamp("TUMBLEWEED SNIPER +100");
-            if (ev.hit.body && ev.hit.body.tumbleweed) {
-              const idx = state.tumbleweeds.indexOf(ev.hit.body.tumbleweed);
-              if (idx >= 0) state.tumbleweeds.splice(idx, 1);
-            }
+            const tw = ev.hit.body && ev.hit.body.tumbleweed;
+            crunchTumbleweed(tw, ev.hit.x, ev.hit.y);
           }
         }
       }
@@ -2670,33 +2708,41 @@
       startFight();
     });
     $("btn-next").addEventListener("click", () => {
-      $("overlay-end").hidden = true;
-      if (state.mode === "end" && $("btn-next").textContent === "MAIN MENU") {
-        goHome();
-        return;
+      const advance = () => {
+        $("overlay-end").hidden = true;
+        if (state.mode === "end" && $("btn-next").textContent === "MAIN MENU") {
+          goHome();
+          return;
+        }
+        if (state.replay) {
+          endReplay();
+          goHome();
+          return;
+        }
+        if (state.lives <= 0) {
+          $("overlay-title").hidden = false;
+          state.mode = "title";
+          paintTitle();
+          applyAdPlacement();
+          return;
+        }
+        if (state.level >= GW.LEVELS.length - 1) {
+          beginRun(0);
+          return;
+        }
+        const nxt = state.level + 1;
+        if (nxt === 1) {
+          state.level = nxt;
+          startFight();
+          return;
+        }
+        showBrief(nxt);
+      };
+      if (window.BjangoAds) {
+        window.BjangoAds.showInterstitial().finally(advance);
+      } else {
+        advance();
       }
-      if (state.replay) {
-        endReplay();
-        goHome();
-        return;
-      }
-      if (state.lives <= 0) {
-        $("overlay-title").hidden = false;
-        state.mode = "title";
-        paintTitle();
-        return;
-      }
-      if (state.level >= GW.LEVELS.length - 1) {
-        beginRun(0);
-        return;
-      }
-      const nxt = state.level + 1;
-      if (nxt === 1) {
-        state.level = nxt;
-        startFight();
-        return;
-      }
-      showBrief(nxt);
     });
     $("btn-retry").addEventListener("click", () => {
       $("overlay-end").hidden = true;
@@ -2736,12 +2782,27 @@
       goHome();
     });
     $("btn-how").addEventListener("click", openHow);
+    const btnPrivacy = $("btn-privacy");
+    if (btnPrivacy) {
+      btnPrivacy.addEventListener("click", () => {
+        audio.unlock();
+        closeMenu();
+        window.location.href = "privacy.html";
+      });
+    }
     $("btn-share").addEventListener("click", () => {
       audio.unlock();
       closeMenu();
       const url = "https://mozzer20.github.io/gritty-western/";
       const title = "Bjango";
       const text = "Bjango — hold, drag until it says WILL HIT, let go.";
+      const payload = { title: title, text: text, url: url, dialogTitle: "Share Bjango" };
+      if (typeof window.BJANGO_SHARE === "function") {
+        window.BJANGO_SHARE(payload).catch(function () {
+          if (navigator.share) navigator.share({ title: title, text: text, url: url }).catch(function () {});
+        });
+        return;
+      }
       if (navigator.share) {
         navigator.share({ title: title, text: text, url: url }).catch(function () {});
         return;
@@ -2802,6 +2863,11 @@
     spawnMotes();
     bind();
     fit();
+    if (window.BjangoAds) {
+      window.BjangoAds.initialize().then(function () {
+        applyAdPlacement();
+      });
+    }
     loadImages().then(() => {
       state.ready = true;
       const q = new URLSearchParams(location.search);
@@ -2824,7 +2890,7 @@
       state.installPrompt = null;
       paintInstall();
     });
-    if ("serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator && !isNativeApp()) {
       navigator.serviceWorker
         .register("sw.js", { scope: "./" })
         .then((reg) => {

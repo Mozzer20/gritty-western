@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bjango</string>
+    <string name="title_activity_main">Bjango</string>
+    <string name="package_name">uk.co.mozzer.bjango</string>
+    <string name="custom_url_scheme">uk.co.mozzer.bjango</string>
+</resources>

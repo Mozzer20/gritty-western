@@ -54,6 +54,14 @@ describe("2. Tumbleweeds & Destructibles Physics", () => {
     assert.match(gameSrc, /TUMBLEWEED SNIPER \+100/);
     assert.match(gameSrc, /audio\.tumbleweedCrunch/);
   });
+
+  it("awards tumbleweed points through a single crunch helper so a weed cannot pay twice", () => {
+    assert.match(gameSrc, /function crunchTumbleweed/);
+    assert.match(gameSrc, /if \(!tw \|\| tw\.crunched\) return false/);
+    assert.equal((gameSrc.match(/TUMBLEWEED SNIPER \+100/g) || []).length, 1);
+    assert.match(gameSrc, /checkBulletTumbleweeds[\s\S]*crunchTumbleweed\(tw/);
+    assert.match(gameSrc, /ev\.kind === "tumbleweed"[\s\S]*crunchTumbleweed\(tw/);
+  });
 });
 
 describe("3. Cinematic Bullet Kill-Cam & Deadeye Slow-Mo", () => {
@@ -90,6 +98,12 @@ describe("5. Endless Bounty Hunt Arcade Mode", () => {
 
   it("saves high bounty record to localStorage", () => {
     assert.match(gameSrc, /gw\.save\.bounty/);
+  });
+
+  it("writes the bounty high score on wave clear and on hunt over", () => {
+    assert.match(gameSrc, /function saveHighBounty/);
+    assert.match(gameSrc, /function bountyWaveClear[\s\S]*saveHighBounty\(\)/);
+    assert.match(gameSrc, /function bountyGameOver[\s\S]*saveHighBounty\(\)/);
   });
 });
 
@@ -137,5 +151,49 @@ describe("8. Aiming Stability & Trajectory Sight Cleanliness", () => {
   it("binds pointermove and pointerup to window for continuous tracking", () => {
     assert.match(gameSrc, /window\.addEventListener\("pointermove"/);
     assert.match(gameSrc, /window\.addEventListener\("pointerup"/);
+  });
+});
+
+describe("9. Score keeping & title HUD", () => {
+  it("hides the star strip when the hidden attribute is set", () => {
+    assert.match(css, /\.star-strip\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+  });
+
+  it("uses shots fired for the street-clear ammo bonus, not leftover cylinder count", () => {
+    assert.match(gameSrc, /\(\(L\.par \|\| 3\) - state\.sceneShots\) \* 200/);
+    assert.doesNotMatch(gameSrc, /6 - state\.ammo/);
+  });
+
+  it("restores campaign score and lives when returning home from bounty or a fight", () => {
+    assert.match(
+      gameSrc,
+      /if \(hasRun\(\)\) \{\s*state\.lives = state\.run\.lives;\s*state\.score = state\.run\.score;/
+    );
+    assert.match(gameSrc, /function goHome[\s\S]*updateBountyHUD\(\)/);
+  });
+});
+
+describe("10. Play Store native shell", () => {
+  it("links a privacy page from the in-game menu", () => {
+    assert.match(html, /id="btn-privacy"/);
+    assert.match(gameSrc, /privacy\.html/);
+    assert.ok(fs.existsSync(path.join(__dirname, "..", "privacy.html")));
+  });
+
+  it("does not register a service worker inside the Android app", () => {
+    assert.match(gameSrc, /serviceWorker" in navigator && !isNativeApp\(\)/);
+    assert.match(html, /js\/native\.js/);
+  });
+
+  it("uses the Bjango AdMob app, banner, and interstitial IDs and hides the banner in a fight", () => {
+    const adsSrc = fs.readFileSync(path.join(__dirname, "..", "js", "ads.js"), "utf8");
+    assert.match(adsSrc, /ca-app-pub-0970861679884235~4548340358/);
+    assert.match(adsSrc, /ca-app-pub-0970861679884235\/4436659719/);
+    assert.match(adsSrc, /ca-app-pub-0970861679884235\/9609095344/);
+    assert.match(gameSrc, /function applyAdPlacement/);
+    assert.match(gameSrc, /state\.mode === "fight" \|\| state\.mode === "bounty"/);
+    assert.match(gameSrc, /BjangoAds\.hideBanner/);
+    assert.match(gameSrc, /BjangoAds\.showInterstitial/);
+    assert.match(html, /js\/ads\.js/);
   });
 });
