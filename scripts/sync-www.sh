@@ -7,7 +7,7 @@ mkdir -p "$WWW/css" "$WWW/js" "$WWW/assets/art" "$WWW/assets/characters" "$WWW/a
 
 cp "$ROOT/index.html" "$ROOT/privacy.html" "$ROOT/manifest.json" "$WWW/"
 cp "$ROOT/css/game.css" "$WWW/css/"
-cp "$ROOT/js/physics.js" "$ROOT/js/audio.js" "$ROOT/js/levels.js" "$ROOT/js/ads.js" "$ROOT/js/native.js" "$ROOT/js/game.js" "$WWW/js/"
+cp "$ROOT/js/physics.js" "$ROOT/js/audio.js" "$ROOT/js/levels.js" "$ROOT/js/scenecheck.js" "$ROOT/js/progress.js" "$ROOT/js/daily.js" "$ROOT/js/ads.js" "$ROOT/js/native.js" "$ROOT/js/game.js" "$WWW/js/"
 
 cp "$ROOT"/assets/art/* "$WWW/assets/art/"
 cp "$ROOT"/assets/characters/*.webp "$WWW/assets/characters/"

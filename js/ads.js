@@ -14,7 +14,9 @@
   const BANNER_FALLBACK = 56;
 
   let initialized = false;
-  let allowed = true;
+  // No ads until Google's consent check says they may be requested
+  let allowed = false;
+  let privacyOptionsRequired = false;
   let lastInterstitial = 0;
   let interstitialReady = false;
   let bannerWanted = false;
@@ -38,6 +40,45 @@
   }
 
   const Ads = {
+    /** Asks Google whether ads may be shown (showing its form if needed). Fails closed. */
+    async checkConsent(AdMob) {
+      try {
+        let info = await AdMob.requestConsentInfo();
+        if (info && info.isConsentFormAvailable && info.status === "REQUIRED") {
+          info = await AdMob.showConsentForm();
+        }
+        allowed = !!(info && info.canRequestAds);
+        privacyOptionsRequired = !!(info && String(info.privacyOptionsRequirementStatus) === "REQUIRED");
+      } catch (err) {
+        console.log("[BjangoAds] consent check failed, no ads this session", err);
+        allowed = false;
+      }
+      if (typeof window.onBjangoPrivacyOptions === "function") window.onBjangoPrivacyOptions(privacyOptionsRequired);
+    },
+
+    /** UK/EEA: Google requires a way to change the ad consent choice. */
+    isPrivacyOptionsRequired() {
+      return privacyOptionsRequired;
+    },
+
+    async showPrivacyOptions() {
+      const AdMob = plugin();
+      if (!AdMob) return;
+      try {
+        await AdMob.showPrivacyOptionsForm();
+        await Ads.checkConsent(AdMob);
+        if (allowed) {
+          await Ads.resumeBanner();
+          Ads.preloadInterstitial();
+        } else {
+          await Ads.hideBanner();
+          setPad(0);
+        }
+      } catch (err) {
+        console.log("[BjangoAds] privacy options", err);
+      }
+    },
+
     get allowed() {
       return allowed;
     },
@@ -56,19 +97,7 @@
           tagForChildDirectedTreatment: false,
           tagForUnderAgeOfConsent: false,
         });
-        try {
-          if (typeof AdMob.requestConsentInfo === "function") {
-            let info = await AdMob.requestConsentInfo();
-            if (info && info.isConsentFormAvailable && info.status === "REQUIRED" && typeof AdMob.showConsentForm === "function") {
-              info = await AdMob.showConsentForm();
-            }
-            if (info && info.status === "OBTAINED" && info.canRequestAds === false) {
-              allowed = false;
-            }
-          }
-        } catch (err) {
-          console.log("[BjangoAds] consent", err);
-        }
+        await Ads.checkConsent(AdMob);
         if (AdMob.addListener) {
           AdMob.addListener("onAdSize", function (info) {
             if (bannerWanted && info && info.height) setPad(info.height);

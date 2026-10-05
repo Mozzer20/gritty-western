@@ -124,7 +124,17 @@
       highBounty: 0,
       wavePerfect: true,
       kills: 0,
+      mod: null,
     },
+    // Daily Showdown (plays like a replay: your campaign run is kept)
+    daily: false,
+    dailyLevel: null,
+    dailySave: { last: null, streak: 0, bestKey: null, best: 0 },
+    // Lifetime counters behind the Wanted Posters
+    stats: {},
+    posters: [],
+    toasts: [],
+    toastBusy: false,
   };
 
   function loadSave() {
@@ -137,10 +147,19 @@
       state.coached = !!(s.coached || (s.unlocked || 0) > 0);
       state.gunsmith = localStorage.getItem("gw.save.gunsmith") || "blued";
       state.bounty.highBounty = parseInt(localStorage.getItem("gw.save.bounty") || "0", 10);
+      state.stats = s.stats && typeof s.stats === "object" ? s.stats : {};
+      state.posters = Array.isArray(s.posters) ? s.posters : [];
+      if (s.daily && typeof s.daily === "object") Object.assign(state.dailySave, s.daily);
     } catch (e) {
       state.stars = [];
     }
     while (state.stars.length < GW.LEVELS.length) state.stars.push(0);
+    // Progress made before posters existed still counts
+    setStatMax("furthest", state.unlocked);
+    setStatMax("bestWave", 0);
+    state.stats.totalStars = GW.progress.totalStars(state.stars);
+    state.posters = state.posters.concat(GW.progress.newPosters(state.stats, state.posters).map((p) => p.id));
+    if (!GW.progress.finishUnlocked(state.gunsmith, state.stars)) state.gunsmith = "blued";
     $("bestEl").textContent = fmt(state.best);
     if (state.run) {
       state.lives = Math.max(1, state.run.lives || 3);
@@ -153,6 +172,11 @@
   }
 
   function setGunsmithSkin(skin) {
+    const f = GW.progress.FINISHES.find((x) => x.id === skin);
+    if (!GW.progress.finishUnlocked(skin, state.stars)) {
+      queueToast("LOCKED", "Earn " + (f ? f.stars : "more") + " stars to unlock " + (f ? f.name : "this finish"));
+      return;
+    }
     state.gunsmith = skin;
     try {
       localStorage.setItem("gw.save.gunsmith", skin);
@@ -164,7 +188,12 @@
   function updateGunsmithUI() {
     const chips = document.querySelectorAll(".gun-chip");
     chips.forEach((c) => {
+      const f = GW.progress.FINISHES.find((x) => x.id === c.dataset.skin);
+      const open = GW.progress.finishUnlocked(c.dataset.skin, state.stars);
       c.classList.toggle("active", c.dataset.skin === state.gunsmith);
+      c.classList.toggle("locked", !open);
+      c.textContent = f ? (open ? f.name : "🔒 " + f.stars + "★") : c.textContent;
+      c.setAttribute("aria-label", f ? f.name + (open ? "" : ", locked — needs " + f.stars + " stars") : "");
     });
   }
 
@@ -186,9 +215,71 @@
           stars: state.stars,
           run: state.run,
           coached: state.coached,
+          stats: state.stats,
+          posters: state.posters,
+          daily: state.dailySave,
         })
       );
     } catch (e) {}
+  }
+
+  function bumpStat(k, n) {
+    state.stats[k] = (state.stats[k] || 0) + (n == null ? 1 : n);
+  }
+
+  function setStatMax(k, v) {
+    state.stats[k] = Math.max(state.stats[k] || 0, v || 0);
+  }
+
+  /** The street being played: a campaign level or today's Daily Showdown. */
+  function curLevel() {
+    return state.daily && state.dailyLevel ? state.dailyLevel : GW.LEVELS[state.level];
+  }
+
+  /** Award any posters (and finishes) the latest play earned; queue their toasts. */
+  function checkProgress(starsBefore) {
+    state.stats.totalStars = GW.progress.totalStars(state.stars);
+    if (starsBefore != null) {
+      GW.progress.newlyUnlockedFinishes(starsBefore, state.stats.totalStars).forEach((f) => {
+        queueToast("NEW GUN FINISH", f.name + " — pick it in the menu");
+      });
+    }
+    const fresh = GW.progress.newPosters(state.stats, state.posters);
+    fresh.forEach((p) => {
+      state.posters.push(p.id);
+      queueToast("WANTED POSTER", p.name);
+    });
+    save();
+    updateGunsmithUI();
+  }
+
+  function queueToast(kicker, text) {
+    state.toasts.push({ kicker, text });
+    if (!state.toastBusy) nextToast();
+  }
+
+  function nextToast() {
+    const el = $("toast");
+    const t = state.toasts.shift();
+    if (!el || !t) {
+      state.toastBusy = false;
+      return;
+    }
+    state.toastBusy = true;
+    $("toast-kicker").textContent = t.kicker;
+    $("toast-text").textContent = t.text;
+    el.hidden = false;
+    el.classList.remove("show");
+    void el.offsetWidth;
+    el.classList.add("show");
+    audio.cock();
+    setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => {
+        el.hidden = true;
+        nextToast();
+      }, 280);
+    }, 2600);
   }
 
   function hasRun() {
@@ -205,6 +296,7 @@
   function endReplay() {
     if (!state.replay) return;
     state.replay = false;
+    state.daily = false;
     if (state.stash) {
       state.lives = state.stash.lives;
       state.score = state.stash.score;
@@ -219,8 +311,9 @@
     renderHearts();
   }
 
-  function startReplay(i) {
+  function startReplay(i, daily) {
     audio.unlock();
+    state.daily = !!daily;
     state.stash = hasRun()
       ? { lives: state.run.lives, score: state.run.score, level: state.run.level }
       : { lives: state.lives, score: state.score, level: state.level };
@@ -332,7 +425,7 @@
   }
 
   function buildLevel(i) {
-    const L = GW.LEVELS[i];
+    const L = state.daily && state.dailyLevel ? state.dailyLevel : GW.LEVELS[i];
     state.entities = L.entities.map((raw) => {
       const e = Object.assign(
         {
@@ -390,9 +483,10 @@
     spawnMotes();
     $("chapter").textContent = L.name;
     $("hint").textContent = L.hint;
-    $("hint").classList.add("show");
+    // First ever street: the big coach card is the only instruction on screen
+    $("hint").classList.toggle("show", !needsCoach());
     $("hold-cue").textContent = "TAP AND HOLD";
-    $("hold-cue").style.opacity = needsCoach() ? "0.75" : "0.35";
+    $("hold-cue").style.opacity = needsCoach() ? "0" : "0.35";
     showCoach(needsCoach());
     $("scoreEl").textContent = fmt(state.score);
     renderHearts();
@@ -403,7 +497,7 @@
   }
 
   function previewMode() {
-    const L = GW.LEVELS[state.level];
+    const L = curLevel();
     return (L && L.preview) || "full";
   }
 
@@ -737,6 +831,10 @@
       spawnHat(e);
       state.sceneKills += 1;
       if (chainIndex > 0) state.sceneChains += 1;
+      bumpStat("kills");
+      if (bounces >= 1) bumpStat("bankKills");
+      if (head) bumpStat("headKills");
+      if (chainIndex > 0) bumpStat("doubles");
 
       const hitType = hit.body && hit.body.ent && hit.body.ent.type;
       const isFastDraw = state.fightT < 1.45;
@@ -786,18 +884,26 @@
 
   function rankForScene() {
     if (state.sceneShots <= 1) return 3;
-    const L = GW.LEVELS[state.level];
+    const L = curLevel();
     if (state.sceneShots <= (L.par || 3)) return 2;
     return 1;
   }
 
   function sceneClear() {
-    const L = GW.LEVELS[state.level];
+    const L = curLevel();
     const bonus = Math.max(0, ((L.par || 3) - state.sceneShots) * 200);
     const chainBonus = state.sceneChains * 150;
     state.score += bonus + chainBonus;
     const rank = rankForScene();
+    bumpStat("levelsCleared");
+    if (rank === 3) bumpStat("threeStarClears");
+    if (state.daily) {
+      dailyClear(L, rank);
+      return;
+    }
+    const starsBefore = GW.progress.totalStars(state.stars);
     state.stars[state.level] = Math.max(state.stars[state.level] || 0, rank);
+    setStatMax("furthest", state.level + 1);
     if (!state.replay) {
       if (state.score > state.best) state.best = state.score;
       state.unlocked = Math.max(state.unlocked, state.level + 1);
@@ -839,6 +945,48 @@
     $("overlay-end").hidden = false;
     paintTitle();
     applyAdPlacement();
+    checkProgress(starsBefore);
+  }
+
+  function stars(rank) {
+    return "★".repeat(rank) + "☆".repeat(3 - rank);
+  }
+
+  function startDaily() {
+    closeMenu();
+    state.dailyLevel = GW.daily.dailyLevel();
+    startReplay(state.level, true);
+  }
+
+  function dailyClear(L, rank) {
+    const d = state.dailySave;
+    const today = L.dateKey;
+    d.streak = GW.daily.nextStreak(d.last, d.streak, today);
+    d.last = today;
+    if (d.bestKey !== today) {
+      d.bestKey = today;
+      d.best = 0;
+    }
+    d.best = Math.max(d.best, rank);
+    setStatMax("bestDailyStreak", d.streak);
+    state.mode = "end";
+    resetCam();
+    audio.sting(true);
+    rumble(40);
+    $("end-kicker").textContent = "DAILY SHOWDOWN";
+    $("end-name").textContent = L.name;
+    $("end-stars").textContent = stars(rank);
+    $("end-detail").textContent =
+      (state.sceneShots === 1 ? "One slug. " : state.sceneShots + " shots. ") +
+      (d.streak > 1 ? d.streak + "-day streak! " : "") +
+      "A new street tomorrow.";
+    $("btn-next").hidden = false;
+    $("btn-next").textContent = "BACK TO TITLE";
+    $("btn-retry").textContent = "PLAY AGAIN";
+    $("overlay-end").hidden = false;
+    paintTitle();
+    applyAdPlacement();
+    checkProgress();
   }
 
   function startBountyMode() {
@@ -922,6 +1070,31 @@
       });
     }
 
+    // Every third wave has a twist that pays 1.5×
+    const MODS = [
+      { id: "quick", name: "QUICK DRAW", note: "They draw fast. Pay ×1.5" },
+      { id: "iron", name: "IRON MEN", note: "All marshals — two hits or a hat. Pay ×1.5" },
+      { id: "pans", name: "PAN ALLEY", note: "Swinging pans everywhere. Pay ×1.5" },
+    ];
+    const mod = wave % 3 === 0 ? MODS[(wave / 3 - 1) % MODS.length] : null;
+    state.bounty.mod = mod;
+    if (mod && mod.id === "quick") {
+      ents.forEach((e) => {
+        if (e.type === "enemy") e.draw = Math.max(2.2, e.draw * 0.8);
+      });
+    } else if (mod && mod.id === "iron") {
+      ents.forEach((e) => {
+        if (e.type === "enemy") {
+          e.species = "marshal";
+          e.hp = 2;
+          e.draw += 0.6;
+        }
+      });
+    } else if (mod && mod.id === "pans") {
+      ents.push({ type: "pan", x: 150, y: 560, s: 1, swing: 46, period: 2.6 });
+      ents.push({ type: "pan", x: 360, y: 600, s: 0.95, swing: 54, period: 3.1 });
+    }
+
     state.entities = ents.map((raw) => {
       const e = Object.assign(
         {
@@ -959,20 +1132,23 @@
     state.bullet = null;
     state.tumbleweeds = [];
 
-    $("chapter").textContent = "WAVE " + wave;
-    $("hint").textContent = "WAVE " + wave + " — ELIMINATE ALL OUTLAWS";
+    $("chapter").textContent = "WAVE " + wave + (mod ? " · " + mod.name : "");
+    $("hint").textContent = mod ? "WAVE " + wave + " — " + mod.note : "WAVE " + wave + " — ELIMINATE ALL OUTLAWS";
     $("hint").classList.add("show");
-    stamp("WAVE " + wave);
+    if (mod) state.hintT = 3.4;
+    stamp(mod ? mod.name : "WAVE " + wave);
     updateBountyHUD();
     state.mode = "bounty";
   }
 
   function bountyWaveClear() {
     const wave = state.bounty.wave;
+    setStatMax("bestWave", wave);
     const basePay = 250 * wave;
     const streakPay = state.bounty.streak * 100;
     const perfectPay = state.bounty.wavePerfect ? 500 : 0;
-    const waveCash = Math.round((basePay + streakPay + perfectPay) * state.bounty.multiplier);
+    const modPay = state.bounty.mod ? 1.5 : 1;
+    const waveCash = Math.round((basePay + streakPay + perfectPay) * state.bounty.multiplier * modPay);
 
     state.bounty.cash += waveCash;
     state.score += waveCash;
@@ -1021,6 +1197,7 @@
     $("overlay-end").hidden = false;
     updateBountyHUD();
     applyAdPlacement();
+    checkProgress();
   }
 
   function playerHit() {
@@ -1051,7 +1228,7 @@
       state.mode = "end";
       if (state.replay) {
         $("end-kicker").textContent = "THEY DREW";
-        $("end-name").textContent = GW.LEVELS[state.level].name;
+        $("end-name").textContent = curLevel().name;
         $("end-stars").textContent = "";
         $("end-detail").textContent = "Your run is still going.";
         $("btn-next").hidden = false;
@@ -1081,15 +1258,17 @@
   }
 
   function showBrief(i) {
-    const L = GW.LEVELS[i];
     state.level = i;
+    const L = curLevel();
     $("brief-chapter").textContent = L.chapter;
     $("brief-numeral").textContent = L.numeral;
     $("brief-name").textContent = L.name;
-    $("brief-hint").textContent = state.replay
+    $("brief-hint").textContent = state.daily
+      ? L.hint
+      : state.replay
       ? "Replay this street. Your campaign score and lives stay as they were."
       : L.hint;
-    $("btn-brief").textContent = state.replay ? "REPLAY THIS STREET" : "PLAY THIS STREET";
+    $("btn-brief").textContent = state.daily ? "DRAW!" : state.replay ? "REPLAY THIS STREET" : "PLAY THIS STREET";
     $("overlay-brief").hidden = false;
     $("overlay-title").hidden = true;
     $("overlay-end").hidden = true;
@@ -1217,27 +1396,98 @@
     }
     const showNew = hasRun() || (state.unlocked > 0 && !done);
     if (neu) neu.hidden = !showNew;
-    if (strip) strip.hidden = state.unlocked <= 0;
-    if (stripHelp) {
-      stripHelp.hidden = state.unlocked <= 0;
-      stripHelp.textContent = state.unlocked > 0 ? "Tap a street to replay it. Your run stays." : "Your streets";
-    }
+    if (strip) strip.hidden = true;
+    if (stripHelp) stripHelp.hidden = true;
     paintInstall();
-    if (!strip) return;
-    strip.innerHTML = "";
+    const total = GW.progress.totalStars(state.stars);
+    const mapStars = $("map-stars");
+    if (mapStars) mapStars.textContent = total + "/" + GW.LEVELS.length * 3 + "★";
+    const dailyBadge = $("daily-badge");
+    if (dailyBadge) {
+      const d = state.dailySave;
+      const today = GW.daily.dateKey();
+      dailyBadge.textContent = d.last === today ? "✓ " + d.streak + "🔥" : d.streak > 0 && GW.daily.nextStreak(d.last, d.streak, today) > 1 ? "keep " + d.streak + "🔥" : "NEW";
+    }
+    const posterCount = $("posters-count");
+    if (posterCount) posterCount.textContent = state.posters.length + "/" + GW.progress.POSTERS.length;
+  }
+
+  /** Level map: every street by chapter with its stars. */
+  function openMap() {
+    audio.unlock();
+    closeMenu();
+    const list = $("map-list");
+    list.innerHTML = "";
+    let chapter = null;
+    let grid = null;
     GW.LEVELS.forEach((L, i) => {
+      if (L.chapter !== chapter) {
+        chapter = L.chapter;
+        const h = document.createElement("h3");
+        h.className = "map-chapter";
+        h.textContent = chapter;
+        list.appendChild(h);
+        grid = document.createElement("div");
+        grid.className = "map-grid";
+        list.appendChild(grid);
+      }
+      const done = i < state.unlocked;
+      const next = i === state.unlocked;
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "star-chip" + (i > state.unlocked ? " locked" : "");
+      b.className = "map-cell" + (done ? " done" : next ? " next" : " locked");
       const r = state.stars[i] || 0;
-      b.innerHTML = "<span>" + L.numeral + "</span><b>" + "★".repeat(r) + "☆".repeat(3 - r) + "</b>";
-      b.disabled = i > state.unlocked;
+      b.innerHTML =
+        "<span class='map-num'>" + L.numeral + "</span>" +
+        "<span class='map-name'>" + L.name + "</span>" +
+        "<span class='map-stars'>" + (done ? stars(r) : next ? "PLAY" : "🔒") + "</span>";
+      b.disabled = !done && !next;
+      b.setAttribute("aria-label", L.numeral + " " + L.name + (done ? ", " + r + " stars" : next ? ", next street" : ", locked"));
       b.addEventListener("click", () => {
-        if (i > state.unlocked) return;
-        startReplay(i);
+        $("overlay-map").hidden = true;
+        if (done) startReplay(i);
+        else startCampaign();
       });
-      strip.appendChild(b);
+      grid.appendChild(b);
     });
+    const total = GW.progress.totalStars(state.stars);
+    $("map-total").textContent = total + " of " + GW.LEVELS.length * 3 + " stars · " + Math.min(state.unlocked, GW.LEVELS.length) + " of " + GW.LEVELS.length + " streets won";
+    $("overlay-map").hidden = false;
+    $("overlay-title").hidden = true;
+  }
+
+  /** Wanted Posters: every achievement, earned or in progress. */
+  function openPosters() {
+    audio.unlock();
+    closeMenu();
+    const list = $("posters-list");
+    list.innerHTML = "";
+    GW.progress.POSTERS.forEach((p) => {
+      const have = state.posters.includes(p.id);
+      const pct = Math.round(GW.progress.posterProgress(p, state.stats) * 100);
+      const el = document.createElement("div");
+      el.className = "poster" + (have ? " earned" : "");
+      el.innerHTML =
+        "<p class='poster-kicker'>" + (have ? "WANTED · CLAIMED" : "WANTED") + "</p>" +
+        "<p class='poster-name'>" + p.name + "</p>" +
+        "<p class='poster-desc'>" + p.desc + "</p>" +
+        (have ? "" : "<div class='poster-bar'><i style='width:" + pct + "%'></i></div>");
+      list.appendChild(el);
+    });
+    $("posters-total").textContent = state.posters.length + " of " + GW.progress.POSTERS.length + " claimed";
+    $("overlay-posters").hidden = false;
+    $("overlay-title").hidden = true;
+  }
+
+  function closeSubScreen(id) {
+    $(id).hidden = true;
+    $("overlay-title").hidden = false;
+    paintTitle();
+  }
+
+  function startCampaign() {
+    if (hasRun() && state.unlocked < GW.LEVELS.length) resumeRun();
+    else beginRun(state.unlocked > 0 ? continueLevel() : 0);
   }
 
   function updateStreet(wdt) {
@@ -1356,6 +1606,7 @@
     burst(px, py, "#edd7a8", 16, 240);
     state.score += 100;
     $("scoreEl").textContent = fmt(state.score);
+    bumpStat("tumbleweeds");
     stamp("TUMBLEWEED SNIPER +100");
     rumblePat([14, 18, 12]);
     state.shake = 8;
@@ -2320,20 +2571,25 @@
     ctx.translate(360, VH - 8 + cocked * 10 + rec * 18);
     ctx.rotate(tilt * 0.55 - cocked * 0.09 + rec * 0.12);
 
-    if (skin === "silver") {
-      ctx.filter = "contrast(1.25) brightness(1.3) saturate(0.2)";
-    } else if (skin === "gold") {
-      ctx.filter = "sepia(0.8) saturate(2.6) brightness(1.18) contrast(1.1)";
-    } else if (skin === "charred") {
-      ctx.filter = "contrast(1.6) brightness(0.65) saturate(0.35)";
-    }
+    // Finishes are earned with stars (GW.progress.FINISHES)
+    const FINISH_FILTERS = {
+      silver: "contrast(1.25) brightness(1.3) saturate(0.2)",
+      gold: "sepia(0.8) saturate(2.6) brightness(1.18) contrast(1.1)",
+      charred: "contrast(1.6) brightness(0.65) saturate(0.35)",
+      rose: "sepia(0.6) saturate(2.2) hue-rotate(-28deg) brightness(1.15)",
+      jade: "sepia(0.7) saturate(2.4) hue-rotate(95deg) brightness(1.05)",
+      midnight: "sepia(0.5) saturate(2.2) hue-rotate(185deg) brightness(0.8) contrast(1.2)",
+      bloodred: "sepia(0.9) saturate(3.4) hue-rotate(-38deg) brightness(0.9) contrast(1.15)",
+      legend: "sepia(1) saturate(3.2) brightness(1.35) contrast(1.2)",
+    };
+    if (FINISH_FILTERS[skin]) ctx.filter = FINISH_FILTERS[skin];
 
     if (img) {
       const h = 260;
       const w = (img.width / img.height) * h;
       ctx.drawImage(img, -w * 0.5, -h + 16, w, h);
 
-      if (skin === "gold") {
+      if (skin === "gold" || skin === "legend") {
         ctx.save();
         ctx.globalCompositeOperation = "color-dodge";
         ctx.strokeStyle = "rgba(255, 235, 150, 0.4)";
@@ -2661,10 +2917,24 @@
     window.addEventListener("pointercancel", onUp, { passive: false });
     stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
-    $("btn-start").addEventListener("click", () => {
-      if (hasRun() && state.unlocked < GW.LEVELS.length) resumeRun();
-      else beginRun(state.unlocked > 0 ? continueLevel() : 0);
-    });
+    $("btn-start").addEventListener("click", startCampaign);
+    const btnAdChoices = $("btn-ad-choices");
+    if (btnAdChoices) {
+      window.onBjangoPrivacyOptions = (required) => {
+        btnAdChoices.hidden = !required;
+      };
+      btnAdChoices.addEventListener("click", () => {
+        closeMenu();
+        if (window.BjangoAds) window.BjangoAds.showPrivacyOptions();
+      });
+    }
+    $("btn-map").addEventListener("click", openMap);
+    $("btn-daily").addEventListener("click", startDaily);
+    $("btn-posters").addEventListener("click", openPosters);
+    $("btn-map-close").addEventListener("click", () => closeSubScreen("overlay-map"));
+    $("btn-posters-close").addEventListener("click", () => closeSubScreen("overlay-posters"));
+    const btnDailyMenu = $("btn-daily-menu");
+    if (btnDailyMenu) btnDailyMenu.addEventListener("click", startDaily);
 
     const btnBountyStart = $("btn-bounty-start");
     if (btnBountyStart) {

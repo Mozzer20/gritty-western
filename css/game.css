@@ -550,7 +550,7 @@ body.on-title #cylinder-wrap {
 
 .gunsmith-chips {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
@@ -764,4 +764,198 @@ body.on-title #cylinder-wrap {
   0% { opacity: 0.82; }
   35% { opacity: 0.28; }
   100% { opacity: 0; }
+}
+
+/* ---------- Streets / Daily / Wanted (title second row) ---------- */
+.title-sub-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  max-width: 320px;
+  margin: 14px auto 12px;
+}
+.btn-mini {
+  flex: 1;
+  min-height: 48px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid rgba(232, 195, 106, 0.45);
+  background: rgba(16, 10, 7, 0.7);
+  color: var(--gold);
+  font-family: Cinzel, serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+.btn-mini b {
+  font-family: "Special Elite", monospace;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+}
+.btn-mini:active { transform: translateY(1px); }
+#start-help { margin-top: 2px; }
+
+/* ---------- Level map & posters ---------- */
+.card.map {
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 48px - var(--ad-height));
+  padding: 12px 10px 8px;
+}
+.map-total {
+  margin: 6px 0 4px;
+  font-size: 13px;
+  color: var(--dust);
+}
+.map-chapter {
+  margin: 16px 0 8px;
+  font-family: Cinzel, serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  text-align: left;
+  border-bottom: 1px solid rgba(232, 195, 106, 0.25);
+  padding-bottom: 4px;
+}
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.map-cell {
+  min-height: 78px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid rgba(232, 195, 106, 0.3);
+  background: rgba(16, 10, 7, 0.6);
+  color: var(--paper);
+  cursor: pointer;
+}
+.map-cell.next {
+  border-color: var(--gold);
+  background: linear-gradient(#7a2218, #3a100c);
+  box-shadow: 0 0 12px rgba(232, 195, 106, 0.35);
+}
+.map-cell.locked {
+  opacity: 0.4;
+  cursor: default;
+}
+.map-num {
+  font-family: Cinzel, serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--gold);
+}
+.map-name {
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+.map-stars {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+}
+.posters-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 12px 0 6px;
+}
+.poster {
+  padding: 10px 8px;
+  border: 1px dashed rgba(232, 215, 184, 0.3);
+  background: rgba(16, 10, 7, 0.55);
+  opacity: 0.75;
+}
+.poster.earned {
+  opacity: 1;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, rgba(232, 195, 106, 0.22), rgba(16, 10, 7, 0.6));
+}
+.poster-kicker {
+  margin: 0;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--dust);
+}
+.poster.earned .poster-kicker { color: var(--gold); }
+.poster-name {
+  margin: 4px 0 2px;
+  font-family: Rye, Cinzel, serif;
+  font-size: 15px;
+  color: var(--paper);
+}
+.poster-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--dust);
+}
+.poster-bar {
+  height: 4px;
+  margin-top: 6px;
+  background: rgba(232, 215, 184, 0.15);
+}
+.poster-bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+/* ---------- Toast (posters, finishes) ---------- */
+.toast {
+  position: absolute;
+  top: calc(84px + var(--safe-top));
+  left: 50%;
+  z-index: 40;
+  transform: translate(-50%, -16px);
+  opacity: 0;
+  min-width: 220px;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  text-align: center;
+  border: 1px solid var(--gold);
+  background: linear-gradient(#3a100c, #1a0806);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+.toast[hidden] { display: none !important; }
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.toast-kicker {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  color: var(--gold);
+}
+.toast-text {
+  margin: 4px 0 0;
+  font-family: Rye, Cinzel, serif;
+  font-size: 18px;
+  color: var(--paper);
+}
+
+/* Locked gun finishes */
+.gun-chip.locked {
+  opacity: 0.55;
+  border-style: dashed !important;
+}
+/* Keep sub-screens clear of the menu button */
+#overlay-map,
+#overlay-posters {
+  padding-top: calc(72px + var(--safe-top));
 }

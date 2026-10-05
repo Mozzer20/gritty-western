@@ -116,17 +116,24 @@
           <p class="menu-kicker">BJANGO</p>
           <button type="button" id="btn-home" hidden>Home</button>
           <button type="button" id="btn-bounty-mode">Bounty Hunt</button>
+          <button type="button" id="btn-daily-menu">Daily Showdown</button>
           <div class="menu-gunsmith-section">
-            <p class="menu-sub-kicker">GUNSMITH FINISH</p>
+            <p class="menu-sub-kicker">GUNSMITH FINISH · EARN WITH STARS</p>
             <div id="gunsmith-chips" class="gunsmith-chips">
               <button type="button" class="gun-chip active" data-skin="blued">Blued</button>
               <button type="button" class="gun-chip" data-skin="silver">Silver</button>
               <button type="button" class="gun-chip" data-skin="gold">Gold</button>
               <button type="button" class="gun-chip" data-skin="charred">Charred</button>
+              <button type="button" class="gun-chip" data-skin="rose">Rose Gold</button>
+              <button type="button" class="gun-chip" data-skin="jade">Jade</button>
+              <button type="button" class="gun-chip" data-skin="midnight">Midnight</button>
+              <button type="button" class="gun-chip" data-skin="bloodred">Devil Red</button>
+              <button type="button" class="gun-chip" data-skin="legend">Legend</button>
             </div>
           </div>
           <button type="button" id="btn-how">How to play</button>
           <button type="button" id="btn-privacy">Privacy</button>
+          <button type="button" id="btn-ad-choices" hidden>Ad choices</button>
           <button type="button" id="btn-share">Share</button>
           <button type="button" id="btn-install" hidden>Add to Home Screen</button>
           <button type="button" id="btn-new" hidden>Start over</button>
@@ -151,6 +158,11 @@
             <div class="title-btn-row">
               <button class="btn" id="btn-start" type="button">CAMPAIGN</button>
               <button class="btn btn-bounty" id="btn-bounty-start" type="button">BOUNTY HUNT</button>
+            </div>
+            <div class="title-sub-row">
+              <button class="btn-mini" id="btn-map" type="button">STREETS<b id="map-stars">0★</b></button>
+              <button class="btn-mini" id="btn-daily" type="button">DAILY<b id="daily-badge">NEW</b></button>
+              <button class="btn-mini" id="btn-posters" type="button">WANTED<b id="posters-count">0</b></button>
             </div>
             <p class="help-line" id="start-help">Hold. Drag until it says WILL HIT. Let go.</p>
           </div>
@@ -179,6 +191,28 @@
           </div>
         </div>
 
+        <div id="overlay-map" class="overlay" hidden>
+          <div class="card map">
+            <p class="brand-kicker">RED DUST COUNTY</p>
+            <h2 class="scene-name">STREETS</h2>
+            <p class="map-total" id="map-total"></p>
+            <div id="map-list" class="map-list"></div>
+            <button class="btn ghost" id="btn-map-close" type="button">BACK</button>
+          </div>
+        </div>
+        <div id="overlay-posters" class="overlay" hidden>
+          <div class="card map">
+            <p class="brand-kicker">YOUR LEGEND</p>
+            <h2 class="scene-name">WANTED POSTERS</h2>
+            <p class="map-total" id="posters-total"></p>
+            <div id="posters-list" class="posters-list"></div>
+            <button class="btn ghost" id="btn-posters-close" type="button">BACK</button>
+          </div>
+        </div>
+        <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+          <p class="toast-kicker" id="toast-kicker"></p>
+          <p class="toast-text" id="toast-text"></p>
+        </div>
         <div id="overlay-end" class="overlay" hidden>
           <div class="card end">
             <p class="brand-kicker" id="end-kicker">SCENE</p>
@@ -203,6 +237,9 @@
     <script src="js/physics.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/levels.js"></script>
+    <script src="js/scenecheck.js"></script>
+    <script src="js/progress.js"></script>
+    <script src="js/daily.js"></script>
     <script src="js/ads.js"></script>
     <script src="js/native.js"></script>
     <script src="js/game.js"></script>

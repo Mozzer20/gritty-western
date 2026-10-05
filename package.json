@@ -1,10 +1,10 @@
 {
   "name": "bjango",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Bjango — The Gritty Western. Cinematic mobile ricochet shooter.",
   "scripts": {
-    "test": "node tests/physics.test.js && node tests/levels.test.js && node --test tests/features.test.js",
+    "test": "node tests/physics.test.js && node tests/levels.test.js && node --test tests/features.test.js tests/daily.test.js",
     "sync:www": "bash scripts/sync-www.sh",
     "icons": "python3 scripts/build-android-icons.py",
     "cap:sync": "npm run sync:www && npx cap sync android",
