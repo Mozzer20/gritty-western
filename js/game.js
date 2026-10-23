@@ -189,6 +189,7 @@
     stash: null,
     installPrompt: null,
     coached: false,
+    bounceCoached: false,
     gunsmith: "blued",
     tumbleweeds: [],
     tumbleweedTimer: 3.2,
@@ -222,6 +223,7 @@
       state.stars = Array.isArray(s.stars) ? s.stars : [];
       if (s.run && typeof s.run.level === "number") state.run = s.run;
       state.coached = !!(s.coached || (s.unlocked || 0) > 0);
+      state.bounceCoached = !!(s.bounceCoached || (s.unlocked || 0) > 1);
       state.gunsmith = localStorage.getItem("gw.save.gunsmith") || "blued";
       state.bounty.highBounty = parseInt(localStorage.getItem("gw.save.bounty") || "0", 10);
       state.stats = s.stats && typeof s.stats === "object" ? s.stats : {};
@@ -292,6 +294,7 @@
           stars: state.stars,
           run: state.run,
           coached: state.coached,
+          bounceCoached: state.bounceCoached,
           stats: state.stats,
           posters: state.posters,
           daily: state.dailySave,
@@ -1391,18 +1394,31 @@
   }
 
   function needsCoach() {
-    return !state.coached && !state.replay && state.level === 0;
+    return !state.daily && !state.replay && ((!state.coached && state.level === 0) || needsBounceCoach());
+  }
+
+  // Street II teaches the bank shot the same way street I teaches the draw.
+  function needsBounceCoach() {
+    return !state.bounceCoached && !state.daily && !state.replay && state.level === 1;
   }
 
   function markCoached() {
-    if (state.coached) return;
+    if (state.coached && !needsBounceCoach()) return;
+    if (state.level === 1) state.bounceCoached = true;
     state.coached = true;
     save();
   }
 
   function showCoach(on) {
     const el = $("coach");
-    if (el) el.hidden = !on;
+    if (!el) return;
+    el.hidden = !on;
+    if (!on) return;
+    const bounce = needsBounceCoach();
+    $("coach-title").textContent = bounce ? "BOUNCE IT" : "HOLD AND DRAG";
+    $("coach-sub").textContent = bounce
+      ? "The crate blocks a straight shot. Drag the line onto the pan and it bounces into him."
+      : "Put your thumb down and drag the gold line onto the outlaw. Let go to shoot.";
   }
 
   function goHome() {
@@ -1852,7 +1868,8 @@
       audio.stopHeart();
     }
 
-    if ((state.mode === "fight" || state.mode === "bounty") && !state.bullet && $("overlay-how").hidden) {
+    // Nobody draws on you while the lesson is still on screen.
+    if ((state.mode === "fight" || state.mode === "bounty") && !state.bullet && $("overlay-how").hidden && !needsCoach()) {
       for (const e of living()) {
         if (e.hidden) continue;
         e.drawT += wdt;
@@ -2051,7 +2068,7 @@
     ctx.save();
     ctx.translate(farX, farY);
     const bg = gimg(L.bg);
-    if (bg) ctx.drawImage(bg, -36, -36, VW + 72, VH + 72);
+    if (bg) drawStreetBg(bg);
     else {
       const g = ctx.createLinearGradient(0, 0, 0, VH);
       g.addColorStop(0, "#6a3118");
@@ -2092,6 +2109,28 @@
     ctx.strokeStyle = "rgba(232, 195, 106, 0.12)";
     ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, VW - 20, VH - 20);
+  }
+
+  // The painted streets put the horizon mid-screen, but the outlaws stand in
+  // the top third. Zoom the backdrop so the far end of the street rises to
+  // meet their boots instead of leaving them standing on the sky.
+  // zoom: how far to blow the painting up; horizon: its height in the
+  // painting (0..1); ground: where that horizon lands on the 1280 stage.
+  const BG_FRAME = {
+    street: { zoom: 1.36, horizon: 0.41, ground: 300 },
+    saloon: { zoom: 1.36, horizon: 0.41, ground: 300 },
+    gallows: { zoom: 1.36, horizon: 0.41, ground: 300 },
+    canyon: { zoom: 1.5, horizon: 0.43, ground: 230 },
+    depot: { zoom: 1.5, horizon: 0.43, ground: 230 },
+  };
+
+  function drawStreetBg(img) {
+    const f = BG_FRAME[gradeKey] || BG_FRAME.street;
+    const w = (VW + 72) * f.zoom;
+    const h = (VH + 72) * f.zoom;
+    const x = (VW - w) / 2;
+    const y = Math.min(-36, f.ground - f.horizon * h);
+    ctx.drawImage(img, x, Math.max(y, VH + 36 - h), w, h);
   }
 
   function drawShadow(x, y, rx, ry, a) {
@@ -2485,6 +2524,69 @@
     }
   }
 
+  function sightLabel(x, y, text, a) {
+    sctx.save();
+    sctx.globalAlpha = a;
+    sctx.font = "700 34px Cinzel, serif";
+    sctx.textAlign = "center";
+    sctx.textBaseline = "middle";
+    sctx.lineWidth = 7;
+    sctx.strokeStyle = "rgba(20, 10, 6, 0.85)";
+    sctx.strokeText(text, clamp(x, 150, VW - 150), y);
+    sctx.fillStyle = "#ffe7a0";
+    sctx.fillText(text, clamp(x, 150, VW - 150), y);
+    sctx.restore();
+  }
+
+  // A ghost thumb that shows the move: press, drag the line onto the target,
+  // let go. Loops until the player first touches the screen.
+  function drawCoachDemo() {
+    const foe = living().find((e) => !e.hidden);
+    if (!foe) return;
+    const head = { x: foe.x, y: foe.y - 90 * 0.92 * (foe.s || 1) };
+    const pan = needsBounceCoach() ? state.entities.find((e) => e.type === "pan") : null;
+    const goal = pan ? { x: pan.x, y: pan.y } : head;
+    const m = state.muzzle;
+    const start = { x: 360, y: 980 };
+    const t = (performance.now() / 2600) % 1;
+    const k = t < 0.15 ? 0 : t < 0.6 ? easeInOut((t - 0.15) / 0.45) : 1;
+    const f = { x: start.x + (goal.x - start.x) * k, y: start.y + (goal.y - start.y) * k };
+    const fade = t > 0.88 ? 1 - (t - 0.88) / 0.12 : Math.min(1, t / 0.08);
+
+    // the line runs from the gun through the thumb
+    const dx = f.x - m.x;
+    const dy = f.y - m.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const reach = k >= 1 ? len : len + 260;
+    const tip = { x: m.x + (dx / len) * reach, y: m.y + (dy / len) * reach };
+    strokePoly(sctx, [m, tip], 0.85 * fade);
+    if (pan && k >= 1) strokePoly(sctx, [goal, head], 0.85 * fade, true);
+
+    // thumb
+    const press = t < 0.15 ? t / 0.15 : 1;
+    sctx.save();
+    sctx.globalAlpha = fade;
+    sctx.fillStyle = "rgba(255, 240, 200, 0.22)";
+    sctx.strokeStyle = "#fff4c8";
+    sctx.lineWidth = 3;
+    sctx.beginPath();
+    sctx.arc(f.x, f.y, 44 - 10 * press, 0, Math.PI * 2);
+    sctx.fill();
+    sctx.stroke();
+    sctx.beginPath();
+    sctx.arc(f.x, f.y, 14, 0, Math.PI * 2);
+    sctx.fillStyle = "#fff4c8";
+    sctx.fill();
+    sctx.restore();
+
+    if (k >= 1) sightLabel(head.x, head.y - 150, pan ? "BOUNCE WILL HIT" : "WILL HIT", fade);
+    if (t > 0.78 && t < 0.92) sightLabel(f.x, f.y + 80, "LET GO!", 1 - Math.abs(t - 0.85) / 0.07);
+  }
+
+  function easeInOut(x) {
+    return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  }
+
   // The aim layer is wiped only when something was drawn on it.
   let sightDirty = true;
 
@@ -2499,7 +2601,8 @@
     if (!sctx || !sight) return;
     clearSight();
     if (state.mode !== "fight" && state.mode !== "bounty") return;
-    if (!state.aiming && !state.ghost) return;
+    const demo = !state.aiming && !state.bullet && needsCoach();
+    if (!state.aiming && !state.ghost && !demo) return;
     sightDirty = true;
     const v = state.view;
     const cam = state.cam;
@@ -2508,6 +2611,10 @@
     sctx.rotate(cam.roll);
     sctx.scale(cam.z, cam.z);
     sctx.translate(-cam.x, -cam.y);
+    if (demo) {
+      drawCoachDemo();
+      return;
+    }
     if (state.aiming) {
       drawPath(sctx);
     } else if (state.ghost) {
@@ -2524,6 +2631,7 @@
           sctx.arc(b.ent.x, b.ent.y - 110 * (b.ent.s || 1), 52, 0, Math.PI * 2);
           sctx.stroke();
           sctx.restore();
+          sightLabel(b.ent.x, b.ent.y - 110 * (b.ent.s || 1) - 74, state.preview.bounces ? "BOUNCE WILL HIT" : "WILL HIT", 1);
         } else if (b.tag === "tumbleweed" || b.tumbleweed) {
           const tw = b.tumbleweed;
           sctx.save();
