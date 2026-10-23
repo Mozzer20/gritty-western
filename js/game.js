@@ -27,11 +27,11 @@
   const TITLE_BANK = {
     crate: { x: 360, y: 820, s: 1.15 },
     pan: { x: 600, y: 520, s: 1.15 },
-    enemy: { x: 360, y: 400, s: 1 },
+    enemy: { x: 150, y: 430, s: 0.95 },
     path: [
       { x: 366, y: 1151 },
       { x: 547, y: 533 },
-      { x: 377, y: 358 },
+      { x: 160, y: 352 },
     ],
   };
 
@@ -2927,7 +2927,7 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     const bg = images.street;
-    if (bg) ctx.drawImage(bg, 0, 0, VW, VH);
+    if (bg) drawStreetBg(bg);
     else {
       ctx.fillStyle = "#140c08";
       ctx.fillRect(0, 0, VW, VH);
