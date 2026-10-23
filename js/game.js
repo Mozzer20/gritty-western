@@ -7,6 +7,23 @@
   const SAVE = "gw.save.v2";
   const P = GW.physics;
   const audio = GW.audio;
+
+  // Voice lines are short clips; the first one can land before its file has
+  // decoded, so try again briefly instead of dropping it.
+  function voice(line, urgent, delay) {
+    let tries = 0;
+    const go = () => {
+      if (audio.say(line, urgent) || ++tries > 4) return;
+      setTimeout(go, 300);
+    };
+    setTimeout(go, delay || 0);
+  }
+
+  function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  const CHAPTERS = [];
   const TITLE_BANK = {
     crate: { x: 360, y: 820, s: 1.15 },
     pan: { x: 600, y: 520, s: 1.15 },
@@ -559,6 +576,7 @@
     state.lockId = null;
     state.cylKick = 0;
     state.pendingStamp = 0;
+    state.taunted = Math.random() < 0.45;
     resetCam();
     spawnMotes();
     $("chapter").textContent = L.name;
@@ -813,6 +831,7 @@
         t: 0,
       };
       audio.deadeyeWhoosh();
+      voice("deadeye", true, 120);
       $("bt-veil").classList.add("killcam");
     }
 
@@ -934,6 +953,9 @@
         updateBountyHUD();
       }
 
+      if (chainIndex > 0) voice("double", true, 250);
+      else if (bounces >= 1 && !state.killCam) voice("bank", false, 250);
+      if (state.mode === "bounty") audio.cash();
       state.pendingStamp = { text: style, t: 0.28 };
       audio.bountyStinger(bounces + (head ? 1 : 0) + (chainIndex > 0 ? 1 : 0));
       state.camFocus = e;
@@ -994,6 +1016,7 @@
     $("bestEl").textContent = fmt(state.best);
     $("scoreEl").textContent = fmt(state.score);
     audio.sting(true);
+    voice("clear", false, 1500);
     rumble(40);
     state.mode = "end";
     resetCam();
@@ -1285,6 +1308,8 @@
     state.lives -= 1;
     renderHearts();
     audio.hurt();
+    if (state.lives > 0) voice(pick(["outlaw-tooslow", "drewfirst"]), true, 200);
+    else voice("gameover", true, 1300);
     rumble(50);
     state.shake = 18;
     flash();
@@ -1355,8 +1380,18 @@
     $("overlay-title").hidden = true;
     $("overlay-end").hidden = true;
     state.mode = "brief";
+    if (state.daily) voice("daily", true, 250);
+    else if (!state.replay) {
+      const prev = GW.LEVELS[i - 1];
+      if (!prev || prev.chapter !== L.chapter) voice("ch" + (chapterIndex(L.chapter) + 1), true, 250);
+    }
     showHomeBtn(true);
     applyAdPlacement();
+  }
+
+  function chapterIndex(name) {
+    if (!CHAPTERS.length) for (const L of GW.LEVELS) if (!CHAPTERS.includes(L.chapter)) CHAPTERS.push(L.chapter);
+    return Math.max(0, CHAPTERS.indexOf(name));
   }
 
   function startFight() {
@@ -1366,6 +1401,9 @@
     buildLevel(state.level);
     state.mode = "fight";
     audio.whistle();
+    // Street I has no brief card, so its chapter line plays here.
+    if (state.level === 0 && !state.replay && !state.daily) voice("ch1", true, 400);
+    else if (Math.random() < 0.35) voice(pick(["steady", "count"]), false, 700);
     showHomeBtn(true);
     applyAdPlacement();
   }
@@ -1872,7 +1910,12 @@
     if ((state.mode === "fight" || state.mode === "bounty") && !state.bullet && $("overlay-how").hidden && !needsCoach()) {
       for (const e of living()) {
         if (e.hidden) continue;
+        const was = e.drawT / e.drawMax;
         e.drawT += wdt;
+        if (!state.taunted && was < 0.55 && e.drawT / e.drawMax >= 0.55) {
+          state.taunted = true;
+          voice(pick(["outlaw-reach", "outlaw-yourmove", "outlaw-slower", "outlaw-prayers"]));
+        }
         if (e.drawT >= e.drawMax) {
           playerHit();
           return;
@@ -1926,6 +1969,7 @@
           applyKill(last.hit, b.bounces, 0);
         } else if (b.kills === 0) {
           audio.dust(last ? last.x : 360);
+          if (Math.random() < 0.3) voice("outlaw-missed", false, 350);
           stamp("DUST");
           state.ghost = { pts: b.pts, t: 1.05 };
         }

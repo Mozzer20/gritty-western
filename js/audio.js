@@ -4,6 +4,12 @@
 (function (root) {
   const GW = (root.GW = root.GW || {});
 
+  const VOICE_LINES = [
+    "ch1", "ch2", "ch3", "ch4", "ch5", "ch6", "ch7",
+    "deadeye", "double", "bank", "clear", "drewfirst", "gameover", "steady", "count", "daily",
+    "outlaw-reach", "outlaw-yourmove", "outlaw-slower", "outlaw-prayers", "outlaw-tooslow", "outlaw-missed",
+  ];
+
   function env(ctx, a, d, s, r, peak) {
     const g = ctx.createGain();
     const t = ctx.currentTime;
@@ -27,6 +33,14 @@
       this._gustOn = false;
       this._gustArmed = false;
       this._banks = {
+        win: { paths: ["assets/sfx/win-1.mp3"], raw: [], bufs: [], last: -1 },
+        lose: { paths: ["assets/sfx/lose-1.mp3"], raw: [], bufs: [], last: -1 },
+        ricochet: { paths: ["assets/sfx/ricochet-1.mp3", "assets/sfx/ricochet-2.mp3"], raw: [], bufs: [], last: -1 },
+        slowmo: { paths: ["assets/sfx/slowmo-1.mp3"], raw: [], bufs: [], last: -1 },
+        glass: { paths: ["assets/sfx/glass-1.mp3"], raw: [], bufs: [], last: -1 },
+        tumble: { paths: ["assets/sfx/tumble-1.mp3"], raw: [], bufs: [], last: -1 },
+        whistle: { paths: ["assets/sfx/whistle-1.mp3"], raw: [], bufs: [], last: -1 },
+        cash: { paths: ["assets/sfx/cash-1.mp3"], raw: [], bufs: [], last: -1 },
         ugh: {
           paths: ["assets/sfx/ugh.mp3", "assets/sfx/ugh-2.mp3", "assets/sfx/ugh-3.mp3"],
           raw: [],
@@ -121,7 +135,36 @@
           last: -1,
         },
       };
+      for (const line of VOICE_LINES) {
+        this._banks["vo:" + line] = { paths: ["assets/vo/" + line + ".mp3"], raw: [], bufs: [], last: -1 };
+      }
+      this._voice = null;
       this._fetchBanks();
+    }
+
+    // One voice at a time. A line that would talk over another is dropped
+    // unless it is marked urgent, which cuts the old one off.
+    say(line, urgent) {
+      if (!this.ctx || this.muted) return false;
+      const bank = this._banks["vo:" + line];
+      const buf = bank && bank.bufs[0];
+      if (!buf) return false;
+      const now = this.ctx.currentTime;
+      if (this._voice && this._voice.end > now) {
+        if (!urgent) return false;
+        try {
+          this._voice.src.stop();
+        } catch (e) {}
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      const g = this.ctx.createGain();
+      g.gain.value = 1.15;
+      src.connect(g);
+      g.connect(this.master);
+      src.start();
+      this._voice = { src, end: now + buf.duration };
+      return true;
     }
 
     _fetchBanks() {
@@ -445,6 +488,7 @@
         const rate = 0.96 + (bounce || 0) * 0.03 + (Math.random() * 0.05 - 0.02);
         if (this._playBank("barrel", rate, 0.95, panX)) return;
       }
+      if (this._playBank("ricochet", 0.97 + (bounce || 0) * 0.04 + Math.random() * 0.04, 0.75)) return;
       const f = 1540 + (bounce || 0) * 260;
       this.tone(f, 0.22, "sine", 0.16, f * 0.48, 0.42, panX);
       this.tone(f * 2.03, 0.09, "triangle", 0.05, f * 0.9, 0.42, panX);
@@ -546,6 +590,7 @@
 
     tumbleweedCrunch(panX) {
       if (!this.ctx || this.muted) return;
+      if (this._playBank("tumble", 0.95 + Math.random() * 0.1, 1)) return;
       this.noise(0.16, 0.32, 800, 6000, 0.7, panX);
       this.tone(880, 0.05, "triangle", 0.14, 280, 0.7, panX);
       this.tone(1350, 0.035, "sine", 0.09, 500, 0.7, panX);
@@ -553,6 +598,7 @@
 
     lanternShatter(panX) {
       if (!this.ctx || this.muted) return;
+      if (this._playBank("glass", 1, 0.85)) return;
       this.tone(2600, 0.22, "sine", 0.18, 1200, 0.6, panX);
       this.tone(3400, 0.12, "triangle", 0.11, 1600, 0.6, panX);
       this.noise(0.22, 0.26, 2500, 12000, 0.75, panX);
@@ -573,6 +619,7 @@
 
     deadeyeWhoosh() {
       if (!this.ctx || this.muted) return;
+      if (this._playBank("slowmo", 1, 0.7)) return;
       this.tone(160, 0.7, "sine", 0.38, 26, 1);
       this.noise(0.42, 0.28, 35, 450, 1);
     }
@@ -595,6 +642,7 @@
 
     whistle() {
       if (!this.ctx || this.muted) return;
+      if (this._playBank("whistle", 1, 0.55)) return;
       const o = this.ctx.createOscillator();
       const o2 = this.ctx.createOscillator();
       o.type = "sine";
@@ -615,7 +663,12 @@
       o2.stop(now + 1.35);
     }
 
+    cash() {
+      this._playBank("cash", 0.98 + Math.random() * 0.04, 0.6);
+    }
+
     sting(win) {
+      if (this._playBank(win ? "win" : "lose", 1, 0.8)) return;
       if (win) {
         this.tone(262, 0.16, "triangle", 0.1);
         const later = this;
