@@ -59,6 +59,83 @@
     gallows: { shadow: "rgb(22,22,26)", shadowA: 0.1, high: "rgb(255,228,176)", highA: 0.22, sun: [0.5, 0.08] },
   };
 
+  // Gun finishes are earned with stars (GW.progress.FINISHES)
+  const FINISH_FILTERS = {
+    silver: "contrast(1.25) brightness(1.3) saturate(0.2)",
+    gold: "sepia(0.8) saturate(2.6) brightness(1.18) contrast(1.1)",
+    charred: "contrast(1.6) brightness(0.65) saturate(0.35)",
+    rose: "sepia(0.6) saturate(2.2) hue-rotate(-28deg) brightness(1.15)",
+    jade: "sepia(0.7) saturate(2.4) hue-rotate(95deg) brightness(1.05)",
+    midnight: "sepia(0.5) saturate(2.2) hue-rotate(185deg) brightness(0.8) contrast(1.2)",
+    bloodred: "sepia(0.9) saturate(3.4) hue-rotate(-38deg) brightness(0.9) contrast(1.15)",
+    legend: "sepia(1) saturate(3.2) brightness(1.35) contrast(1.2)",
+  };
+
+  // The street's colour grade is baked into each image once, instead of
+  // blending two full-screen multiply/overlay layers every frame.
+  let gradeKey = null;
+  let gradeCache = {};
+
+  function bakeImage(img, grade, filter) {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const x = c.getContext("2d");
+    if (filter) x.filter = filter;
+    x.drawImage(img, 0, 0);
+    x.filter = "none";
+    if (grade) {
+      x.globalCompositeOperation = "multiply";
+      x.globalAlpha = grade.shadowA;
+      x.fillStyle = grade.shadow;
+      x.fillRect(0, 0, w, h);
+      x.globalCompositeOperation = "overlay";
+      x.globalAlpha = grade.highA;
+      x.fillStyle = grade.high;
+      x.fillRect(0, 0, w, h);
+      x.globalCompositeOperation = "destination-in";
+      x.globalAlpha = 1;
+      x.drawImage(img, 0, 0);
+    }
+    return c;
+  }
+
+  // Bake a street's art while a static screen is showing, so the first
+  // frames of the fight don't stutter.
+  function prewarmGrade(bg) {
+    const prev = gradeKey;
+    gradeKey = GRADES[bg] ? bg : "street";
+    gimg(gradeKey);
+    for (const key of Object.keys(IMG)) if (!GRADES[key]) gimg(key);
+    gimg("revolver", FINISH_FILTERS[state.gunsmith]);
+    gradeKey = prev;
+  }
+
+  function gimg(key, filter) {
+    const img = images[key];
+    if (!img || (!gradeKey && !filter)) return img;
+    if (gradeCache.key !== gradeKey) gradeCache = { key: gradeKey };
+    const id = filter ? key + "|" + filter : key;
+    if (!gradeCache[id]) {
+      const baked = bakeImage(img, gradeKey && GRADES[gradeKey], filter);
+      gradeCache[id] = baked;
+      // Swap in a plain image once encoded: browsers rebuild scaled copies of a
+      // canvas on every high-quality draw, but cache them for images.
+      const cache = gradeCache;
+      baked.toBlob((blob) => {
+        if (!blob) return;
+        const im = new Image();
+        im.onload = () => {
+          if (cache[id] === baked) cache[id] = im;
+        };
+        im.src = URL.createObjectURL(blob);
+      });
+    }
+    return gradeCache[id];
+  }
+
   function depthScale(y) {
     return 0.78 + Math.max(0, Math.min(1, y / VH)) * 0.4;
   }
@@ -1033,6 +1110,7 @@
 
     const bgList = ["street", "saloon", "canyon", "depot", "gallows"];
     const currentBg = bgList[(wave - 1) % bgList.length];
+    if (state.ready) prewarmGrade(currentBg);
     const enemyCount = Math.min(4, 1 + Math.floor((wave - 1) / 2));
     const drawBase = Math.max(2.4, 7.8 - wave * 0.28);
 
@@ -1260,6 +1338,7 @@
   function showBrief(i) {
     state.level = i;
     const L = curLevel();
+    if (state.ready) prewarmGrade(L.bg);
     $("brief-chapter").textContent = L.chapter;
     $("brief-numeral").textContent = L.numeral;
     $("brief-name").textContent = L.name;
@@ -1867,7 +1946,7 @@
   }
 
   function fit() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = perf.low ? 1 : Math.min(2, window.devicePixelRatio || 1);
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     canvas.width = Math.max(1, w * dpr);
@@ -1966,11 +2045,12 @@
     ctx.fillRect(-80, -80, VW + 160, VH + 160);
 
     const L = GW.LEVELS[state.level] || GW.LEVELS[0];
+    gradeKey = GRADES[L.bg] ? L.bg : "street";
     const farX = (state.cam.x - VW / 2) * 0.16;
     const farY = (state.cam.y - VH / 2) * 0.12;
     ctx.save();
     ctx.translate(farX, farY);
-    const bg = images[L.bg];
+    const bg = gimg(L.bg);
     if (bg) ctx.drawImage(bg, -36, -36, VW + 72, VH + 72);
     else {
       const g = ctx.createLinearGradient(0, 0, 0, VH);
@@ -2005,7 +2085,7 @@
     if (!state.bullet && state.camHold <= 0) drawGun();
     drawEnemyMeters();
     drawNearGrit();
-    drawGrade(L.bg);
+    drawSlowMoVeil();
     drawBullet();
     if (state.muzzleFlash > 0) drawMuzzleFlash();
 
@@ -2078,29 +2158,24 @@
     ctx.restore();
   }
 
-  function drawGrade(bg) {
-    const g = GRADES[bg] || GRADES.street;
+  let slowMoVeil = null;
+
+  function drawSlowMoVeil() {
+    if (state.timeScale >= 0.55) return;
+    if (!slowMoVeil) {
+      slowMoVeil = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.18, VW / 2, VH / 2, VH * 0.72);
+      slowMoVeil.addColorStop(0, "rgba(6, 14, 18, 0)");
+      slowMoVeil.addColorStop(1, "rgb(6, 14, 18)");
+    }
+    const beat = 0.16 + 0.1 * Math.sin(performance.now() / 360);
     ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    ctx.globalAlpha = g.shadowA;
-    ctx.fillStyle = g.shadow;
+    ctx.globalAlpha = 0.38 + beat;
+    ctx.fillStyle = slowMoVeil;
     ctx.fillRect(-80, -80, VW + 160, VH + 160);
-    ctx.globalCompositeOperation = "overlay";
-    ctx.globalAlpha = g.highA;
-    ctx.fillStyle = g.high;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(180, 90, 30, 0.07)";
     ctx.fillRect(-80, -80, VW + 160, VH + 160);
     ctx.restore();
-
-    if (state.timeScale < 0.55) {
-      const beat = 0.16 + 0.1 * Math.sin(performance.now() / 360);
-      const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.18, VW / 2, VH / 2, VH * 0.72);
-      vg.addColorStop(0, "rgba(12, 28, 34, 0)");
-      vg.addColorStop(1, "rgba(6, 14, 18," + (0.38 + beat) + ")");
-      ctx.fillStyle = vg;
-      ctx.fillRect(-80, -80, VW + 160, VH + 160);
-      ctx.fillStyle = "rgba(180, 90, 30, 0.07)";
-      ctx.fillRect(-80, -80, VW + 160, VH + 160);
-    }
   }
 
   function drawCasings() {
@@ -2194,7 +2269,7 @@
   function drawEnemy(e) {
     const d = depthScale(e.y) * (e.s || 1);
     const key = poseKey(e);
-    const img = images[key] || images[e.species] || images.outlaw;
+    const img = gimg(images[key] ? key : images[e.species] ? e.species : "outlaw");
     ctx.save();
     const sway = !e.dead && !state.aiming && !state.bullet ? Math.sin(state.fightT * 1.6 + e.x * 0.02) * 1.6 : 0;
     ctx.translate(e.x + sway, e.y);
@@ -2230,7 +2305,7 @@
     if (e.type === "fence") {
       const x0 = Math.min(e.x0, e.x1);
       const x1 = Math.max(e.x0, e.x1);
-      const img = images.crate;
+      const img = gimg("crate");
       const h = 74;
       drawShadow((x0 + x1) * 0.5, e.y + 18, (x1 - x0) * 0.48, 14, 0.28);
       ctx.save();
@@ -2246,8 +2321,7 @@
       ctx.restore();
       return;
     }
-    const map = { pan: images.pan, barrel: images.barrel, crate: images.crate, sign: images.sign };
-    const img = map[e.type];
+    const img = e.type === "pan" || e.type === "barrel" || e.type === "crate" || e.type === "sign" ? gimg(e.type) : null;
     const d = depthScale(e.y);
     const h = (e.type === "pan" ? 92 * e.s : e.type === "sign" ? (e.h || 200) * 0.72 : 130 * e.s) * d;
     if (e.type === "pan") {
@@ -2336,8 +2410,8 @@
 
       ctx.translate(tw.x, tw.y);
       ctx.rotate(tw.rot);
-      const img = images.tumbleweed;
-      if (img && img.complete && img.naturalWidth > 0) {
+      const img = gimg("tumbleweed");
+      if (img) {
         const sz = tw.r * 2.24;
         ctx.drawImage(img, -sz / 2, -sz / 2, sz, sz);
       } else {
@@ -2562,7 +2636,6 @@
     const tilt = ang + Math.PI / 2;
     const cocked = state.aiming ? 1 : 0;
     const rec = state.recoil || 0;
-    const img = images.revolver;
     const skin = state.gunsmith || "blued";
 
     ctx.save();
@@ -2571,18 +2644,8 @@
     ctx.translate(360, VH - 8 + cocked * 10 + rec * 18);
     ctx.rotate(tilt * 0.55 - cocked * 0.09 + rec * 0.12);
 
-    // Finishes are earned with stars (GW.progress.FINISHES)
-    const FINISH_FILTERS = {
-      silver: "contrast(1.25) brightness(1.3) saturate(0.2)",
-      gold: "sepia(0.8) saturate(2.6) brightness(1.18) contrast(1.1)",
-      charred: "contrast(1.6) brightness(0.65) saturate(0.35)",
-      rose: "sepia(0.6) saturate(2.2) hue-rotate(-28deg) brightness(1.15)",
-      jade: "sepia(0.7) saturate(2.4) hue-rotate(95deg) brightness(1.05)",
-      midnight: "sepia(0.5) saturate(2.2) hue-rotate(185deg) brightness(0.8) contrast(1.2)",
-      bloodred: "sepia(0.9) saturate(3.4) hue-rotate(-38deg) brightness(0.9) contrast(1.15)",
-      legend: "sepia(1) saturate(3.2) brightness(1.35) contrast(1.2)",
-    };
-    if (FINISH_FILTERS[skin]) ctx.filter = FINISH_FILTERS[skin];
+    // Baked once per finish: a live ctx.filter forces a slow redraw every frame.
+    const img = gimg("revolver", FINISH_FILTERS[skin]);
 
     if (img) {
       const h = 260;
@@ -2696,6 +2759,7 @@
 
   function drawTitleBg() {
     const v = state.view;
+    gradeKey = null;
     ctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -2802,24 +2866,46 @@
     ctx.strokeRect(10, 10, VW - 20, VH - 20);
   }
 
-  function loop(then) {
-    return function frame(now) {
-      const dt = Math.min(0.033, (now - then) / 1000 || 0.016);
-      update(dt);
-      syncChrome();
-      if (state.mode === "title" || state.mode === "brief" || state.mode === "how") {
-        drawTitleBg();
-        if (sctx && sight) {
-          sctx.setTransform(1, 0, 0, 1, 0, 0);
-          sctx.clearRect(0, 0, sight.width, sight.height);
-        }
-      } else {
-        drawWorld();
-        drawSight();
+  // If the phone can't hold a smooth frame rate, drop to 1x resolution and
+  // turn off the film grain. Checked once, a few seconds into play.
+  const perf = { frames: 0, time: 0, low: false };
+
+  function watchFrameRate(raw) {
+    if (perf.low || raw > 0.25) return;
+    if (state.mode !== "fight" && state.mode !== "bounty") return;
+    perf.frames++;
+    perf.time += raw;
+    if (perf.frames < 180) return;
+    if (perf.time / perf.frames > 1 / 45) {
+      perf.low = true;
+      document.body.classList.add("low-power");
+      fit();
+    }
+    perf.frames = 0;
+    perf.time = 0;
+  }
+
+  let lastFrame = 0;
+
+  function frame(now) {
+    const raw = (now - lastFrame) / 1000;
+    lastFrame = now;
+    const dt = Math.min(0.033, raw || 0.016);
+    watchFrameRate(raw);
+    update(dt);
+    syncChrome();
+    if (state.mode === "title" || state.mode === "brief" || state.mode === "how") {
+      drawTitleBg();
+      if (sctx && sight) {
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.clearRect(0, 0, sight.width, sight.height);
       }
-      drawCylinder();
-      requestAnimationFrame(loop(now));
-    };
+    } else {
+      drawWorld();
+      drawSight();
+    }
+    drawCylinder();
+    requestAnimationFrame(frame);
   }
 
   function onDown(ev) {
@@ -3128,8 +3214,24 @@
     });
   }
 
+  function makeGrain() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d");
+    const px = x.createImageData(128, 128);
+    for (let i = 0; i < px.data.length; i += 4) {
+      const v = Math.random();
+      const shade = v > 0.5 ? 255 : 0;
+      px.data[i] = px.data[i + 1] = px.data[i + 2] = shade;
+      px.data[i + 3] = Math.abs(v - 0.5) * 2 * 255;
+    }
+    x.putImageData(px, 0, 0);
+    document.documentElement.style.setProperty("--grain", "url(" + c.toDataURL() + ")");
+  }
+
   function boot() {
     loadSave();
+    makeGrain();
     spawnMotes();
     bind();
     fit();
@@ -3150,7 +3252,8 @@
         if (q.get("go") === "1") startFight();
       }
     });
-    requestAnimationFrame(loop(performance.now()));
+    lastFrame = performance.now();
+    requestAnimationFrame(frame);
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       state.installPrompt = e;
