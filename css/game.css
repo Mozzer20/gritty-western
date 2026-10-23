@@ -724,6 +724,11 @@ body.on-title #cylinder-wrap {
   display: none;
 }
 
+/* Menus are still frames; the grain only flickers during a fight. */
+body.on-title .grain {
+  animation: none;
+}
+
 @keyframes grain {
   0% { transform: translate(0, 0); }
   100% { transform: translate(-2%, 1%); }

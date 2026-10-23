@@ -2485,11 +2485,22 @@
     }
   }
 
-  function drawSight() {
-    if (!sctx || !sight) return;
+  // The aim layer is wiped only when something was drawn on it.
+  let sightDirty = true;
+
+  function clearSight() {
+    if (!sctx || !sight || !sightDirty) return;
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.clearRect(0, 0, sight.width, sight.height);
+    sightDirty = false;
+  }
+
+  function drawSight() {
+    if (!sctx || !sight) return;
+    clearSight();
     if (state.mode !== "fight" && state.mode !== "bounty") return;
+    if (!state.aiming && !state.ghost) return;
+    sightDirty = true;
     const v = state.view;
     const cam = state.cam;
     sctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
@@ -2886,8 +2897,25 @@
   }
 
   let lastFrame = 0;
+  let endSince = 0;
+
+  // Frames to skip between draws. 120Hz phones would otherwise draw twice as
+  // often as the art needs, and still screens behind cards don't need to
+  // draw at all.
+  function frameGap(now) {
+    const covered =
+      !$("overlay-map").hidden || !$("overlay-posters").hidden || !$("overlay-how").hidden || !$("menu").hidden;
+    if (state.mode !== "end") endSince = 0;
+    else if (!endSince) endSince = now;
+    if (covered || (endSince && now - endSince > 1800)) return Infinity;
+    if (state.mode === "title" || state.mode === "brief") return 1000 / 31;
+    return 1000 / 61;
+  }
 
   function frame(now) {
+    requestAnimationFrame(frame);
+    const gap = frameGap(now);
+    if (now - lastFrame < gap) return;
     const raw = (now - lastFrame) / 1000;
     lastFrame = now;
     const dt = Math.min(0.033, raw || 0.016);
@@ -2896,17 +2924,14 @@
     syncChrome();
     if (state.mode === "title" || state.mode === "brief" || state.mode === "how") {
       drawTitleBg();
-      if (sctx && sight) {
-        sctx.setTransform(1, 0, 0, 1, 0, 0);
-        sctx.clearRect(0, 0, sight.width, sight.height);
-      }
+      clearSight();
     } else {
       drawWorld();
       drawSight();
     }
     drawCylinder();
-    requestAnimationFrame(frame);
   }
+
 
   function onDown(ev) {
     if (state.mode !== "fight" && state.mode !== "bounty") return;
@@ -3254,6 +3279,7 @@
     });
     lastFrame = performance.now();
     requestAnimationFrame(frame);
+    document.addEventListener("visibilitychange", () => audio.setHidden(document.hidden));
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       state.installPrompt = e;

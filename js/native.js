@@ -40,6 +40,17 @@
   };
 
   if (App && typeof App.addListener === "function") {
+    // Silence the game the moment the app goes to the background.
+    const sleep = function (on) {
+      const audio = window.GW && window.GW.audio;
+      if (audio && audio.setHidden) audio.setHidden(on);
+    };
+    App.addListener("pause", function () {
+      sleep(true);
+    });
+    App.addListener("resume", function () {
+      sleep(false);
+    });
     App.addListener("backButton", function () {
       const how = document.getElementById("overlay-how");
       if (how && !how.hidden) {

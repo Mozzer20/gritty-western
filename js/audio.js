@@ -191,7 +191,7 @@
 
     unlock() {
       if (this.ctx) {
-        if (this.ctx.state === "suspended") this.ctx.resume();
+        if (this.ctx.state === "suspended" && !this.muted && !this.hidden) this.ctx.resume();
         this._decodeBanks();
         return;
       }
@@ -208,11 +208,27 @@
       comp.connect(this.ctx.destination);
       this._startWind();
       this._decodeBanks();
+      this._sync();
     }
 
     setMuted(m) {
       this.muted = m;
       if (this.master) this.master.gain.value = m ? 0 : 0.5;
+      this._sync();
+    }
+
+    // Let the sound chip sleep while the game is hidden or muted; the wind
+    // loop and compressor otherwise keep the phone's audio thread busy.
+    setHidden(h) {
+      this.hidden = h;
+      this._sync();
+    }
+
+    _sync() {
+      if (!this.ctx) return;
+      const sleep = this.hidden || this.muted;
+      if (sleep && this.ctx.state === "running") this.ctx.suspend();
+      else if (!sleep && this.ctx.state === "suspended") this.ctx.resume();
     }
 
     setTension(on) {
