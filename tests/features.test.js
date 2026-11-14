@@ -197,3 +197,39 @@ describe("10. Play Store native shell", () => {
     assert.match(html, /js\/ads\.js/);
   });
 });
+
+describe("11. Scene and shot bug fixes", () => {
+  it("draws each scene's own backdrop (Daily and Bounty were showing the campaign street)", () => {
+    assert.doesNotMatch(gameSrc, /const L = GW\.LEVELS\[state\.level\] \|\| GW\.LEVELS\[0\];\s*gradeKey/);
+    assert.match(gameSrc, /state\.bg = L\.bg \|\| "street"/);
+    assert.match(gameSrc, /state\.bg = currentBg/);
+  });
+
+  it("lands a slug's final impact once, so a two-hit marshal is not killed by one body shot", () => {
+    assert.match(gameSrc, /if \(b\.dist >= b\.total - 0\.5\) b\.dist = b\.total \+ 1/);
+    assert.match(gameSrc, /if \(!b\.struck && last\.hit/);
+  });
+
+  it("ignores delayed clear and next-wave callbacks from a scene the player has left", () => {
+    assert.match(gameSrc, /if \(state\.sceneId !== scene \|\| state\.mode !== mode\) return;/);
+    assert.match(gameSrc, /state\.lives > 0 && state\.sceneId === scene/);
+  });
+
+  it("does not count shots fired after the last man drops", () => {
+    assert.match(gameSrc, /state\.reloading > 0 \|\| state\.clearing\) \{\s*cancelAim\(\);/);
+  });
+
+  it("never leaves slow-mo stuck on when the gun can't fire", () => {
+    assert.match(gameSrc, /if \(state\.bullet \|\| state\.reloading > 0 \|\| state\.clearing\) return;/);
+    assert.doesNotMatch(gameSrc, /"pointercancel", onUp/);
+  });
+
+  it("keeps Bounty Hunt from ticking off the campaign tutorial", () => {
+    assert.match(gameSrc, /function markCoached\(\) \{\s*if \(state\.mode === "bounty"\) return;/);
+    assert.match(gameSrc, /function needsCoach\(\) \{\s*if \(state\.mode === "bounty"\) return false;/);
+  });
+
+  it("only promises WILL HIT for a man, not a tumbleweed", () => {
+    assert.match(gameSrc, /const lethal = endTag === "body" \|\| endTag === "head";/);
+  });
+});

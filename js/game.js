@@ -144,10 +144,13 @@
       baked.toBlob((blob) => {
         if (!blob) return;
         const im = new Image();
+        const url = URL.createObjectURL(blob);
         im.onload = () => {
           if (cache[id] === baked) cache[id] = im;
+          URL.revokeObjectURL(url);
         };
-        im.src = URL.createObjectURL(blob);
+        im.onerror = () => URL.revokeObjectURL(url);
+        im.src = url;
       });
     }
     return gradeCache[id];
@@ -166,6 +169,10 @@
     unlocked: 0,
     stars: [],
     timeScale: 1,
+    bg: "street",
+    // Bumped whenever a scene starts or ends, so delayed callbacks from an
+    // old scene (clear cards, next wave) know to stand down.
+    sceneId: 0,
     aiming: false,
     pointerId: null,
     aim: { x: 360, y: 640 },
@@ -260,7 +267,7 @@
     if (state.run) {
       state.lives = Math.max(1, state.run.lives || 3);
       state.score = state.run.score || 0;
-      $("scoreEl").textContent = fmt(state.score);
+      paintScore();
       renderHearts();
     }
     updateGunsmithUI();
@@ -404,7 +411,7 @@
       state.score = state.run.score;
       state.level = state.run.level;
     }
-    $("scoreEl").textContent = fmt(state.score);
+    paintScore();
     renderHearts();
   }
 
@@ -417,7 +424,7 @@
     state.replay = true;
     state.lives = 3;
     state.score = 0;
-    $("scoreEl").textContent = "0";
+    paintScore();
     renderHearts();
     showBrief(i);
   }
@@ -577,6 +584,10 @@
     state.cylKick = 0;
     state.pendingStamp = 0;
     state.taunted = Math.random() < 0.45;
+    state.bg = L.bg || "street";
+    state.sceneId += 1;
+    state.clearing = false;
+    state.killCam = null;
     resetCam();
     spawnMotes();
     $("chapter").textContent = L.name;
@@ -586,12 +597,37 @@
     $("hold-cue").textContent = "TAP AND HOLD";
     $("hold-cue").style.opacity = needsCoach() ? "0" : "0.35";
     showCoach(needsCoach());
-    $("scoreEl").textContent = fmt(state.score);
+    paintScore();
     renderHearts();
   }
 
+  let shownScore = 0;
+  function paintScore() {
+    const el = $("scoreEl");
+    const up = state.score > shownScore && (state.mode === "fight" || state.mode === "bounty");
+    shownScore = state.score;
+    el.textContent = fmt(state.score);
+    if (up) {
+      el.classList.remove("bump");
+      void el.offsetWidth;
+      el.classList.add("bump");
+    }
+  }
+
+  let shownLives = 3;
   function renderHearts() {
-    $("hearts").textContent = [0, 1, 2].map((i) => (i < state.lives ? "♥" : "♡")).join(" ");
+    const el = $("hearts");
+    // Unchanged: leave the DOM alone so a heart-break animation can finish.
+    if (state.lives === shownLives && el.childElementCount === 3) return;
+    const lost = state.lives < shownLives && (state.mode === "fight" || state.mode === "bounty");
+    el.innerHTML = [0, 1, 2]
+      .map((i) => {
+        const cls = i < state.lives ? "heart" : "heart gone" + (lost && i === state.lives ? " breaking" : "");
+        return "<i class='" + cls + "'>♥</i>";
+      })
+      .join("");
+    el.setAttribute("aria-label", state.lives + " of 3 lives");
+    shownLives = state.lives;
   }
 
   function previewMode() {
@@ -801,9 +837,19 @@
     return ev;
   }
 
+  function cancelAim() {
+    state.aiming = false;
+    state.pointerId = null;
+    audio.stopHeart();
+  }
+
   function fire() {
-    if ((state.mode !== "fight" && state.mode !== "bounty") || state.bullet || state.reloading > 0) return;
+    if ((state.mode !== "fight" && state.mode !== "bounty") || state.bullet || state.reloading > 0 || state.clearing) {
+      cancelAim();
+      return;
+    }
     if (state.ammo <= 0) {
+      cancelAim();
       audio.click();
       stamp("EMPTY");
       rumble(8);
@@ -821,7 +867,8 @@
       trace.end &&
       trace.end.hit &&
       trace.end.hit.body &&
-      (trace.end.hit.body.tag === "body" || trace.end.hit.body.tag === "head");
+      trace.end.hit.body.ent === enemies[0] &&
+      (trace.end.hit.body.tag === "head" || (enemies[0].hp || 1) <= 1);
 
     if (isLastLethal) {
       state.killCam = {
@@ -940,7 +987,7 @@
       const style = styleName(bounces, head, chainIndex, hitType, isFastDraw);
       const pay = 120 + bounces * 160 + (head ? 220 : 0) + (chainIndex > 0 ? 280 : 0);
       state.score += pay;
-      $("scoreEl").textContent = fmt(state.score);
+      paintScore();
 
       if (state.mode === "bounty") {
         state.bounty.kills += 1;
@@ -1014,7 +1061,7 @@
     }
     save();
     $("bestEl").textContent = fmt(state.best);
-    $("scoreEl").textContent = fmt(state.score);
+    paintScore();
     audio.sting(true);
     voice("clear", false, 1500);
     rumble(40);
@@ -1022,7 +1069,7 @@
     resetCam();
     $("end-kicker").textContent = "SCENE CLEAR";
     $("end-name").textContent = L.name;
-    $("end-stars").textContent = "★".repeat(rank) + "☆".repeat(3 - rank);
+    paintEndStars(rank);
     $("end-detail").textContent =
       (state.sceneShots === 1 ? "One slug. " : state.sceneShots + " shots. ") +
       (state.sceneChains ? "Two names on one bullet. " : "") +
@@ -1055,6 +1102,21 @@
     return "★".repeat(rank) + "☆".repeat(3 - rank);
   }
 
+  /** End-card stars: each one stamps in after the last, with a tick of sound. */
+  function paintEndStars(rank) {
+    const el = $("end-stars");
+    el.innerHTML = "";
+    el.setAttribute("aria-label", rank + " of 3 stars");
+    for (let i = 0; i < 3; i++) {
+      const sp = document.createElement("span");
+      sp.className = "end-star" + (i < rank ? " won" : "");
+      sp.textContent = i < rank ? "★" : "☆";
+      sp.style.animationDelay = 0.25 + i * 0.22 + "s";
+      el.appendChild(sp);
+      if (i < rank) setTimeout(() => { if (state.mode === "end") audio.lock(); }, 250 + i * 220);
+    }
+  }
+
   function startDaily() {
     closeMenu();
     state.dailyLevel = GW.daily.dailyLevel();
@@ -1078,7 +1140,7 @@
     rumble(40);
     $("end-kicker").textContent = "DAILY SHOWDOWN";
     $("end-name").textContent = L.name;
-    $("end-stars").textContent = stars(rank);
+    paintEndStars(rank);
     $("end-detail").textContent =
       (state.sceneShots === 1 ? "One slug. " : state.sceneShots + " shots. ") +
       (d.streak > 1 ? d.streak + "-day streak! " : "") +
@@ -1110,7 +1172,7 @@
       wavePerfect: true,
       kills: 0,
     };
-    $("scoreEl").textContent = "0";
+    paintScore();
     renderHearts();
     $("overlay-title").hidden = true;
     $("overlay-brief").hidden = true;
@@ -1137,6 +1199,16 @@
     const bgList = ["street", "saloon", "canyon", "depot", "gallows"];
     const currentBg = bgList[(wave - 1) % bgList.length];
     if (state.ready) prewarmGrade(currentBg);
+    state.bg = currentBg;
+    state.sceneId += 1;
+    state.clearing = false;
+    state.killCam = null;
+    state.particles = [];
+    state.casings = [];
+    state.hats = [];
+    state.pendingStamp = 0;
+    state.aiming = false;
+    state.reloading = 0;
     const enemyCount = Math.min(4, 1 + Math.floor((wave - 1) / 2));
     const drawBase = Math.max(2.4, 7.8 - wave * 0.28);
 
@@ -1237,7 +1309,7 @@
     state.tumbleweeds = [];
 
     $("chapter").textContent = "WAVE " + wave + (mod ? " · " + mod.name : "");
-    $("hint").textContent = mod ? "WAVE " + wave + " — " + mod.note : "WAVE " + wave + " — ELIMINATE ALL OUTLAWS";
+    $("hint").textContent = mod ? mod.note : "Clear the street before they draw.";
     $("hint").classList.add("show");
     if (mod) state.hintT = 3.4;
     stamp(mod ? mod.name : "WAVE " + wave);
@@ -1256,7 +1328,7 @@
 
     state.bounty.cash += waveCash;
     state.score += waveCash;
-    $("scoreEl").textContent = fmt(state.score);
+    paintScore();
 
     saveHighBounty();
 
@@ -1265,8 +1337,9 @@
     rumble(40);
     stamp("WAVE " + wave + " CLEARED! +$" + fmt(waveCash));
 
+    const scene = state.sceneId;
     setTimeout(() => {
-      if (state.mode === "bounty" && state.lives > 0) {
+      if (state.mode === "bounty" && state.lives > 0 && state.sceneId === scene) {
         startBountyWave(wave + 1);
       }
     }, 1200);
@@ -1432,15 +1505,17 @@
   }
 
   function needsCoach() {
+    if (state.mode === "bounty") return false;
     return !state.daily && !state.replay && ((!state.coached && state.level === 0) || needsBounceCoach());
   }
 
   // Street II teaches the bank shot the same way street I teaches the draw.
   function needsBounceCoach() {
-    return !state.bounceCoached && !state.daily && !state.replay && state.level === 1;
+    return !state.bounceCoached && !state.daily && !state.replay && state.level === 1 && state.mode !== "bounty";
   }
 
   function markCoached() {
+    if (state.mode === "bounty") return;
     if (state.coached && !needsBounceCoach()) return;
     if (state.level === 1) state.bounceCoached = true;
     state.coached = true;
@@ -1462,6 +1537,9 @@
   function goHome() {
     const from = state.mode;
     state.mode = "title";
+    state.sceneId += 1;
+    state.clearing = false;
+    state.killCam = null;
     state.aiming = false;
     state.bullet = null;
     state.pendingStamp = 0;
@@ -1487,7 +1565,7 @@
       state.lives = 3;
       state.score = 0;
     }
-    $("scoreEl").textContent = fmt(state.score);
+    paintScore();
     renderHearts();
     updateBountyHUD();
     paintTitle();
@@ -1682,6 +1760,8 @@
       ty = state.camFocus.y - 90;
       tz = 1.42;
     }
+    // Never pull the lens down past the end of the painted street.
+    ty = Math.min(ty, VH + 24 - VH / 2 / tz);
     const k = Math.min(1, dt * (state.bullet ? (state.killCam ? 8.5 : 6) : 4.2));
     state.cam.x += (tx - state.cam.x) * k;
     state.cam.y += (ty - state.cam.y) * k;
@@ -1738,7 +1818,7 @@
     burst(px, py, "#8c6941", 18, 180);
     burst(px, py, "#edd7a8", 16, 240);
     state.score += 100;
-    $("scoreEl").textContent = fmt(state.score);
+    paintScore();
     bumpStat("tumbleweeds");
     stamp("TUMBLEWEED SNIPER +100");
     rumblePat([14, 18, 12]);
@@ -1752,7 +1832,7 @@
     for (let i = state.tumbleweeds.length - 1; i >= 0; i--) {
       const tw = state.tumbleweeds[i];
       if (Math.hypot(pt.x - tw.x, pt.y - tw.y) < tw.r + 18) {
-        crunchTumbleweed(tw, tw.x, tw.y);
+        if (crunchTumbleweed(tw, tw.x, tw.y)) b.crunched = true;
         break;
       }
     }
@@ -1890,7 +1970,9 @@
       }
       const tr = currentTrace();
       state.preview = tr;
-      const lethal = tr.end && tr.end.body && tr.end.body.tag;
+      const endTag = tr.end && tr.end.body && tr.end.body.tag;
+      const lethal = endTag === "body" || endTag === "head";
+      const weed = endTag === "tumbleweed";
       const lockId = lethal && tr.end.body.ent ? tr.end.body.ent.id : null;
       if (lockId && lockId !== state.lockId) {
         audio.lock();
@@ -1898,7 +1980,7 @@
       }
       state.lockId = lockId;
       const cue = $("hold-cue");
-      cue.textContent = lethal ? (tr.bounces ? "BOUNCE WILL HIT" : "WILL HIT") : "DRAG TO AIM";
+      cue.textContent = lethal ? (tr.bounces ? "BOUNCE WILL HIT" : "WILL HIT") : weed ? "TUMBLEWEED" : "DRAG TO AIM";
       cue.style.opacity = "0.9";
       audio.startHeart();
       audio.setHeartLock(!!lockId);
@@ -1927,6 +2009,8 @@
       const b = state.bullet;
       const prev = b.dist;
       b.dist += 820 * dt;
+      // Landing: make sure the final impact's event fires exactly once.
+      if (b.dist >= b.total - 0.5) b.dist = b.total + 1;
       checkBulletTumbleweeds(b);
       const now = pointAt(b.pts, b.dist);
       for (const ev of b.events) {
@@ -1947,6 +2031,7 @@
               ev.hit.body.ent.spinV += 12;
             }
           } else if (ev.kind === "kill") {
+            b.struck = true;
             const died = applyKill(ev.hit, b.bounces, b.kills);
             if (died) b.kills += 1;
           } else if (ev.kind === "absorb") {
@@ -1959,15 +2044,15 @@
             }
           } else if (ev.kind === "tumbleweed") {
             const tw = ev.hit.body && ev.hit.body.tumbleweed;
-            crunchTumbleweed(tw, ev.hit.x, ev.hit.y);
+            if (crunchTumbleweed(tw, ev.hit.x, ev.hit.y)) b.crunched = true;
           }
         }
       }
       if (b.dist >= b.total - 0.5) {
         const last = b.pts[b.pts.length - 1];
-        if (b.kills === 0 && last.hit && last.hit.body && last.hit.body.tag) {
+        if (!b.struck && last.hit && last.hit.body && (last.hit.body.tag === "body" || last.hit.body.tag === "head")) {
           applyKill(last.hit, b.bounces, 0);
-        } else if (b.kills === 0) {
+        } else if (!b.struck && !b.crunched) {
           audio.dust(last ? last.x : 360);
           if (Math.random() < 0.3) voice("outlaw-missed", false, 350);
           stamp("DUST");
@@ -1979,11 +2064,14 @@
           $("bt-veil").classList.remove("killcam");
         }
         if (living().length === 0) {
-          if (state.mode === "bounty") {
-            setTimeout(bountyWaveClear, 800);
-          } else {
-            setTimeout(sceneClear, 820);
-          }
+          const scene = state.sceneId;
+          const mode = state.mode;
+          state.clearing = true;
+          setTimeout(() => {
+            if (state.sceneId !== scene || state.mode !== mode) return;
+            if (mode === "bounty") bountyWaveClear();
+            else sceneClear();
+          }, mode === "bounty" ? 800 : 820);
         } else if (state.ammo <= 0) {
           startReload();
         }
@@ -1991,8 +2079,7 @@
     }
 
     audio.tickTheme(dt, state.mode === "title");
-    const L = GW.LEVELS[state.level];
-    const openStreet = (state.mode === "fight" || state.mode === "bounty") && (!L || L.bg !== "saloon");
+    const openStreet = (state.mode === "fight" || state.mode === "bounty") && state.bg !== "saloon";
     audio.tickGust(dt, openStreet);
   }
 
@@ -2017,14 +2104,22 @@
       sight.height = canvas.height;
     }
     const scale = Math.min(w / VW, h / VH);
+    // Anchor the 720x1280 street to the bottom of the screen: the gun stays
+    // in the player's hand, and taller phones get extra sky up top (painted
+    // by drawStreetBg) rather than black bars top and bottom.
+    const cssOy = h - VH * scale;
     state.view = {
       scale: scale * dpr,
       ox: (w * dpr - VW * scale * dpr) / 2,
-      oy: (h * dpr - VH * scale * dpr) / 2,
+      oy: cssOy * dpr,
       cssScale: scale,
       cssOx: (w - VW * scale) / 2,
-      cssOy: (h - VH * scale) / 2,
+      cssOy,
+      padTop: cssOy / scale,
+      padSide: (w - VW * scale) / 2 / scale,
     };
+    const stage = $("stage");
+    if (stage) stage.style.setProperty("--s", scale.toFixed(4));
   }
 
   function clientToWorld(cx, cy) {
@@ -2102,17 +2197,19 @@
   function drawWorld() {
     applyWorldXform();
 
+    const padTop = (state.view.padTop || 0) + 80;
+    const padSide = (state.view.padSide || 0) + 80;
     ctx.fillStyle = "#0b0705";
-    ctx.fillRect(-80, -80, VW + 160, VH + 160);
+    ctx.fillRect(-padSide, -padTop, VW + padSide * 2, VH + padTop + 80);
 
-    const L = GW.LEVELS[state.level] || GW.LEVELS[0];
-    gradeKey = GRADES[L.bg] ? L.bg : "street";
+    const sceneBgKey = state.bg || "street";
+    gradeKey = GRADES[sceneBgKey] ? sceneBgKey : "street";
     const farX = (state.cam.x - VW / 2) * 0.16;
     const farY = (state.cam.y - VH / 2) * 0.12;
     ctx.save();
     ctx.translate(farX, farY);
-    const bg = gimg(L.bg);
-    if (bg) drawStreetBg(bg);
+    const bg = gimg(sceneBgKey);
+    if (bg) drawStreetBg(bg, state.view.padTop || 0, 0);
     else {
       const g = ctx.createLinearGradient(0, 0, 0, VH);
       g.addColorStop(0, "#6a3118");
@@ -2122,7 +2219,7 @@
       ctx.fillRect(0, 0, VW, VH);
     }
     ctx.restore();
-    drawSun(L.bg);
+    drawSun(sceneBgKey);
 
     for (const m of state.motes) {
       ctx.fillStyle = "rgba(232, 211, 170," + m.a + ")";
@@ -2149,10 +2246,6 @@
     drawSlowMoVeil();
     drawBullet();
     if (state.muzzleFlash > 0) drawMuzzleFlash();
-
-    ctx.strokeStyle = "rgba(232, 195, 106, 0.12)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(10, 10, VW - 20, VH - 20);
   }
 
   // The painted streets put the horizon mid-screen, but the outlaws stand in
@@ -2168,13 +2261,23 @@
     depot: { zoom: 1.5, horizon: 0.43, ground: 230 },
   };
 
-  function drawStreetBg(img) {
+  function drawStreetBg(img, above, below) {
     const f = BG_FRAME[gradeKey] || BG_FRAME.street;
-    const w = (VW + 72) * f.zoom;
-    const h = (VH + 72) * f.zoom;
-    const x = (VW - w) / 2;
+    let h = (VH + 72) * f.zoom;
+    // Tall phones see beyond the 720x1280 stage (`above` and `below`, in
+    // stage units). Blow the painting up around its horizon until it
+    // covers all of it, so the horizon stays under the outlaws' boots.
+    const needTop = -(above || 0) - 60;
+    const needBottom = VH + (below || 0) + 40;
+    h = Math.max(h, (f.ground - needTop) / f.horizon, (needBottom - f.ground) / (1 - f.horizon));
+    let w = (h / ((VH + 72) * f.zoom)) * (VW + 72) * f.zoom;
+    const side = (state.view.padSide || 0) + 40;
+    if (w < VW + side * 2) {
+      h *= (VW + side * 2) / w;
+      w = VW + side * 2;
+    }
     const y = Math.min(-36, f.ground - f.horizon * h);
-    ctx.drawImage(img, x, Math.max(y, VH + 36 - h), w, h);
+    ctx.drawImage(img, (VW - w) / 2, Math.max(y, VH + 36 - h), w, h);
   }
 
   function drawShadow(x, y, rx, ry, a) {
@@ -2252,12 +2355,14 @@
     }
     const beat = 0.16 + 0.1 * Math.sin(performance.now() / 360);
     ctx.save();
+    const padTop = (state.view.padTop || 0) + 80;
+    const padSide = (state.view.padSide || 0) + 80;
     ctx.globalAlpha = 0.38 + beat;
     ctx.fillStyle = slowMoVeil;
-    ctx.fillRect(-80, -80, VW + 160, VH + 160);
+    ctx.fillRect(-padSide, -padTop, VW + padSide * 2, VH + padTop + 80);
     ctx.globalAlpha = 1;
     ctx.fillStyle = "rgba(180, 90, 30, 0.07)";
-    ctx.fillRect(-80, -80, VW + 160, VH + 160);
+    ctx.fillRect(-padSide, -padTop, VW + padSide * 2, VH + padTop + 80);
     ctx.restore();
   }
 
@@ -2306,12 +2411,18 @@
   }
 
   function drawMuzzleFlash() {
-    const t = state.muzzleFlash / 0.1;
+    const t = Math.min(1, state.muzzleFlash / 0.1);
     const tip = barrelTip();
     const x = tip.x;
     const y = tip.y;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
+    const bloom = ctx.createRadialGradient(x, y, 4, x, y, 220);
+    bloom.addColorStop(0, "rgba(255, 210, 120," + 0.55 * t + ")");
+    bloom.addColorStop(0.4, "rgba(255, 140, 50," + 0.18 * t + ")");
+    bloom.addColorStop(1, "rgba(255, 120, 40, 0)");
+    ctx.fillStyle = bloom;
+    ctx.fillRect(x - 220, y - 220, 440, 440);
     ctx.globalAlpha = t;
     ctx.fillStyle = "#fff6c8";
     ctx.beginPath();
@@ -2729,25 +2840,6 @@
     }
   }
 
-  function drawGhost() {
-    const a = Math.max(0, state.ghost.t);
-    strokePoly(state.ghost.pts, 0.35 * a);
-  }
-
-  function drawFlightRibbon() {
-    const b = state.bullet;
-    const p = pointAt(b.pts, b.dist);
-    ctx.save();
-    ctx.strokeStyle = "rgba(255, 230, 160, 0.35)";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 10]);
-    ctx.beginPath();
-    ctx.moveTo(b.pts[0].x, b.pts[0].y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   function drawBullet() {
     if (!state.bullet) return;
     const p = pointAt(state.bullet.pts, state.bullet.dist);
@@ -2841,58 +2933,183 @@
 
   function drawEnemyMeters() {
     if (state.mode !== "fight" && state.mode !== "bounty") return;
+    if (state.bullet) return;
+    const now = performance.now();
+    // Lowest point of the score bar / street name / bounty purse, in stage units.
+    const hudLine = (state.mode === "bounty" ? 104 : 80) / (state.view.cssScale || 1) - (state.view.padTop || 0);
     for (const e of living()) {
       if (e.hidden) continue;
       const t = Math.max(0, Math.min(1, e.drawT / e.drawMax));
-      const x = e.x;
-      const y = e.y - 210 * (e.s || 1);
-      ctx.strokeStyle = "rgba(0,0,0,0.45)";
-      ctx.lineWidth = 5;
+      const d = depthScale(e.y) * (e.s || 1);
+      const danger = t > 0.72;
+      const pulse = danger ? 1 + 0.12 * Math.sin(now / 70) : 1;
+      const r = 15 * pulse;
+      let x = e.x;
+      let y = e.y - 262 * d;
+      // On short screens a dial above his hat would sit in the HUD: hang it
+      // off his shoulder instead.
+      if (y - r - 6 < hudLine) {
+        x = e.x + (e.x > VW / 2 ? -1 : 1) * 70 * d;
+        y = e.y - 190 * d;
+      }
+      const a0 = -Math.PI / 2;
+      ctx.save();
+      // dial face
+      ctx.fillStyle = "rgba(14, 8, 5, 0.72)";
       ctx.beginPath();
-      ctx.arc(x, y, 16, -Math.PI / 2, Math.PI * 1.5);
-      ctx.stroke();
-      ctx.strokeStyle = t > 0.72 ? "#c43a2a" : "#e8c36a";
-      ctx.lineWidth = 3;
+      ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+      ctx.fill();
+      if (danger) {
+        const glow = ctx.createRadialGradient(x, y, r, x, y, r + 18);
+        glow.addColorStop(0, "rgba(220, 50, 30, 0.45)");
+        glow.addColorStop(1, "rgba(220, 50, 30, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // track and fill
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(232, 195, 106, 0.18)";
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
-      ctx.arc(x, y, 16, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.stroke();
+      if (t > 0.002) {
+        ctx.strokeStyle = danger ? "#e0452f" : t > 0.5 ? "#f0b04a" : "#e8c36a";
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(x, y, r, a0, a0 + t * Math.PI * 2);
+        ctx.stroke();
+      }
+      // watch hand
+      const ha = a0 + t * Math.PI * 2;
+      ctx.strokeStyle = danger ? "#ffd6c8" : "#f6e6c0";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(ha) * (r - 5), y + Math.sin(ha) * (r - 5));
+      ctx.stroke();
+      ctx.fillStyle = danger ? "#ffd6c8" : "#f6e6c0";
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
+  // Redrawn only when something on it changes.
+  let cylKey = "";
+
   function drawCylinder() {
+    const turning = state.reloading > 0 || state.cylKick > 0;
+    const key = state.ammo + "|" + state.gunsmith + "|" + (turning ? performance.now() : 0);
+    if (key === cylKey) return;
+    cylKey = key;
     const w = cyl.width;
     const h = cyl.height;
+    cctx.setTransform(1, 0, 0, 1, 0, 0);
     cctx.clearRect(0, 0, w, h);
     const cx = w / 2;
     const cy = h / 2;
-    cctx.fillStyle = "rgba(16,10,7,0.55)";
+    const R = 80;
+    // spin: a full turn while reloading, one chamber kicked round per shot
+    const spin =
+      state.reloading > 0
+        ? (1 - state.reloading / 1.15) * Math.PI * 2
+        : -state.cylKick * (Math.PI / 3);
+
+    cctx.save();
+    cctx.translate(cx, cy);
+    // drop shadow
+    cctx.fillStyle = "rgba(0, 0, 0, 0.45)";
     cctx.beginPath();
-    cctx.arc(cx, cy, 78, 0, Math.PI * 2);
+    cctx.arc(0, 5, R + 2, 0, Math.PI * 2);
     cctx.fill();
-    cctx.strokeStyle = "rgba(232,195,106,0.55)";
-    cctx.lineWidth = 3;
+
+    cctx.rotate(spin);
+    // fluted steel body
+    const steel = cctx.createRadialGradient(-R * 0.35, -R * 0.45, 6, 0, 0, R);
+    steel.addColorStop(0, "#6b6a6e");
+    steel.addColorStop(0.45, "#2c2b31");
+    steel.addColorStop(1, "#111014");
+    cctx.fillStyle = steel;
+    cctx.beginPath();
+    cctx.arc(0, 0, R, 0, Math.PI * 2);
+    cctx.fill();
+    cctx.strokeStyle = "rgba(232, 195, 106, 0.6)";
+    cctx.lineWidth = 2.5;
     cctx.stroke();
+    // flutes between the chambers
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + Math.PI / 6 + i * (Math.PI / 3);
+      cctx.save();
+      cctx.rotate(a);
+      const g = cctx.createLinearGradient(56, -9, 56, 9);
+      g.addColorStop(0, "rgba(0, 0, 0, 0.7)");
+      g.addColorStop(1, "rgba(120, 118, 128, 0.25)");
+      cctx.fillStyle = g;
+      cctx.beginPath();
+      cctx.ellipse(R - 12, 0, 16, 7, 0, 0, Math.PI * 2);
+      cctx.fill();
+      cctx.restore();
+    }
+
+    // chambers
     for (let i = 0; i < 6; i++) {
       const a = -Math.PI / 2 + i * (Math.PI / 3);
-      const x = cx + Math.cos(a) * 42;
-      const y = cy + Math.sin(a) * 42;
+      const x = Math.cos(a) * 46;
+      const y = Math.sin(a) * 46;
       const live = i < state.ammo;
+      cctx.fillStyle = "#07060a";
       cctx.beginPath();
-      cctx.arc(x, y, 12, 0, Math.PI * 2);
-      cctx.fillStyle = live ? "#e8c36a" : "#2a2118";
+      cctx.arc(x, y, 17, 0, Math.PI * 2);
       cctx.fill();
-      cctx.strokeStyle = live ? "#7a5a20" : "#1a140e";
-      cctx.lineWidth = 2;
-      cctx.stroke();
+      if (live) {
+        const brass = cctx.createRadialGradient(x - 5, y - 6, 1, x, y, 15);
+        brass.addColorStop(0, "#fff1b8");
+        brass.addColorStop(0.35, "#e8c36a");
+        brass.addColorStop(1, "#7a5418");
+        cctx.fillStyle = brass;
+        cctx.beginPath();
+        cctx.arc(x, y, 14, 0, Math.PI * 2);
+        cctx.fill();
+        // primer
+        const primer = cctx.createRadialGradient(x - 1.5, y - 2, 0.5, x, y, 5.5);
+        primer.addColorStop(0, "#f2efe6");
+        primer.addColorStop(1, "#8d877a");
+        cctx.fillStyle = primer;
+        cctx.beginPath();
+        cctx.arc(x, y, 5.5, 0, Math.PI * 2);
+        cctx.fill();
+      } else {
+        cctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+        cctx.lineWidth = 2;
+        cctx.beginPath();
+        cctx.arc(x, y, 15, Math.PI * 1.1, Math.PI * 1.8);
+        cctx.stroke();
+      }
     }
-    if (state.reloading > 0 || state.cylKick > 0) {
+    // centre pin
+    cctx.fillStyle = "#1a191e";
+    cctx.beginPath();
+    cctx.arc(0, 0, 11, 0, Math.PI * 2);
+    cctx.fill();
+    cctx.strokeStyle = "rgba(232, 195, 106, 0.45)";
+    cctx.lineWidth = 2;
+    cctx.stroke();
+    cctx.restore();
+
+    // reload sweep
+    if (state.reloading > 0) {
+      const k = 1 - state.reloading / 1.15;
       cctx.save();
       cctx.translate(cx, cy);
-      cctx.rotate(state.reloading > 0 ? (1.15 - state.reloading) * 8 : state.cylKick * 1.1);
       cctx.strokeStyle = "#e8c36a";
+      cctx.lineWidth = 5;
+      cctx.lineCap = "round";
       cctx.beginPath();
-      cctx.moveTo(0, -20);
-      cctx.lineTo(0, 20);
+      cctx.arc(0, 0, R + 6, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
       cctx.stroke();
       cctx.restore();
     }
@@ -2920,14 +3137,47 @@
     };
   }
 
+  // The title cowboy is part of the title card, pinned to the bottom of the
+  // screen, while the street behind him is drawn on the canvas. On every
+  // phone shape, slide the street so his boots land on the same spot of it
+  // (just behind the crate, under the bank-shot line) instead of letting him
+  // drift up into the sky or down onto the crate.
+  const TITLE_FEET = 700;
+  let titleFeetY = null;
+
+  function measureTitleFeet() {
+    const wrap = $("portrait-wrap");
+    const stage = $("stage");
+    if (!wrap || !wrap.offsetParent) return titleFeetY;
+    // Layout offsets, not getBoundingClientRect: the card's rise-in
+    // animation would otherwise drag the street along with it.
+    let y = wrap.offsetTop + wrap.offsetHeight;
+    for (let el = wrap.offsetParent; el && el !== stage; el = el.offsetParent) {
+      y += el.offsetTop - el.scrollTop;
+    }
+    titleFeetY = y;
+    return y;
+  }
+
+  function titleLayout() {
+    const v = state.view;
+    const s = v.cssScale || 1;
+    const feet = measureTitleFeet();
+    const oy = feet == null ? v.cssOy / 2 : clamp(feet - TITLE_FEET * s, 0, v.cssOy);
+    return { oy, feetWorld: feet == null ? null : (feet - oy) / s };
+  }
+
   function drawTitleBg() {
     const v = state.view;
+    const s = v.cssScale || 1;
     gradeKey = null;
-    ctx.setTransform(v.scale, 0, 0, v.scale, v.ox, v.oy);
+    const lay = titleLayout();
+    v.titleOy = lay.oy;
+    ctx.setTransform(v.scale, 0, 0, v.scale, v.ox, (lay.oy * v.scale) / s);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     const bg = images.street;
-    if (bg) drawStreetBg(bg);
+    if (bg) drawStreetBg(bg, lay.oy / s, (v.cssOy - lay.oy) / s);
     else {
       ctx.fillStyle = "#140c08";
       ctx.fillRect(0, 0, VW, VH);
@@ -2940,9 +3190,12 @@
       ctx.fill();
     }
 
-    const crate = TITLE_BANK.crate;
     const pan = TITLE_BANK.pan;
     const enemy = TITLE_BANK.enemy;
+    // Big screens (tablets) can't slide far enough: step the crate down
+    // instead, so he is never stood on top of it.
+    const crate = Object.assign({}, TITLE_BANK.crate);
+    if (lay.feetWorld != null) crate.y = Math.max(crate.y, lay.feetWorld + 125);
     drawShadow(crate.x, crate.y + 26, 40 * crate.s, 13, 0.3);
     drawShadow(pan.x, pan.y + 18, 22 * pan.s, 7, 0.2);
     drawShadow(enemy.x, enemy.y + 4, 28, 9, 0.32);
@@ -3023,10 +3276,7 @@
     ctx.arc(bead.x, bead.y, 4.2, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-
-    ctx.strokeStyle = "rgba(232, 195, 106, 0.12)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(10, 10, VW - 20, VH - 20);
+    drawParticles();
   }
 
   // If the phone can't hold a smooth frame rate, drop to 1x resolution and
@@ -3087,6 +3337,7 @@
 
   function onDown(ev) {
     if (state.mode !== "fight" && state.mode !== "bounty") return;
+    if (state.bullet || state.reloading > 0 || state.clearing) return;
     if (
       ev.target.closest &&
       ev.target.closest("#btn-menu, #menu, #menu-scrim, #cylinder-wrap, .overlay, button, #star-strip, #portrait-wrap, #hat-hitbox")
@@ -3151,7 +3402,7 @@
     state.score = 0;
     state.run = { lives: 3, score: 0, level: at };
     save();
-    $("scoreEl").textContent = "0";
+    paintScore();
     renderHearts();
     if (at === 0) startFight();
     else showBrief(at);
@@ -3164,7 +3415,7 @@
     if (hasRun()) {
       state.lives = state.run.lives;
       state.score = state.run.score;
-      $("scoreEl").textContent = fmt(state.score);
+      paintScore();
       renderHearts();
       showBrief(state.run.level);
       return;
@@ -3177,7 +3428,12 @@
     stage.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp, { passive: false });
-    window.addEventListener("pointercancel", onUp, { passive: false });
+    window.addEventListener("pointercancel", () => {
+      if (!state.aiming) return;
+      cancelAim();
+      $("hold-cue").style.opacity = "0.35";
+      $("hold-cue").textContent = "TAP AND HOLD";
+    });
     stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
     $("btn-start").addEventListener("click", startCampaign);
@@ -3224,7 +3480,12 @@
         p.classList.add("hat-popping");
         audio.unlock();
         audio.hatPopPlink(360);
-        burst(360, 310, "#e8c36a", 16, 200);
+        const r = p.getBoundingClientRect();
+        const at = clientToWorld(r.left + r.width / 2, r.top + r.height * 0.12);
+        // clientToWorld assumes the fight's bottom-anchored stage
+        at.y += ((state.view.cssOy || 0) - (state.view.titleOy || 0)) / (state.view.cssScale || 1);
+        burst(at.x, at.y, "#e8c36a", 18, 220);
+        burst(at.x, at.y, "#fff2c4", 8, 120);
         rumblePat([8, 14, 8]);
         setTimeout(() => {
           p.classList.remove("hat-popping");
@@ -3240,8 +3501,12 @@
       audio.unlock();
       startFight();
     });
+    let advancing = false;
     $("btn-next").addEventListener("click", () => {
+      if (advancing) return;
+      advancing = true;
       const advance = () => {
+        advancing = false;
         $("overlay-end").hidden = true;
         if (state.mode === "end" && $("btn-next").textContent === "MAIN MENU") {
           goHome();
@@ -3288,7 +3553,7 @@
           state.lives = 3;
           state.score = 0;
           renderHearts();
-          $("scoreEl").textContent = "0";
+          paintScore();
           showBrief(state.level);
           return;
         }
@@ -3372,8 +3637,9 @@
       if (e.code === "Escape") closeMenu();
       if (e.code === "Space" && (state.mode === "fight" || state.mode === "bounty")) {
         e.preventDefault();
-        if (!state.aiming && !state.bullet) {
+        if (!state.aiming && !state.bullet && state.reloading <= 0 && !state.clearing) {
           state.aiming = true;
+          state.aimWarm = 0;
           markCoached();
           showCoach(false);
           audio.unlock();
