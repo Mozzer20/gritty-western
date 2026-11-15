@@ -1,8 +1,8 @@
 # Google Play — Bjango
 
 Package / application ID: `uk.co.mozzer.bjango`  
-Version: `1.0.0` (versionCode **1**)  
-Signed bundle: `PlayStore_Assets/Bjango-release.aab` (also copied to `Bjango-release.aab` in the project root)  
+Version: `1.3.0` (versionCode **4**)  
+Signed bundle: build it with `npm run bundle:aab` (writes `Bjango-release.aab` and `PlayStore_Assets/Bjango-release.aab`)  
 Privacy policy URL: `https://shane-morris.netlify.app/privacy`
 
 This build is **free**, **no in-app purchases**, with **AdMob ads**. Progress stays on the device. Banner on title/menus; full-screen ads between streets, never while you are aiming.
@@ -23,52 +23,72 @@ Do not create a second app. The AAB application ID is `uk.co.mozzer.bjango`.
 
 ## 2. Store listing
 
-- **App name (max 30):** `Bjango: The Gritty Western`
-- **Short description (max 80):**
-  `Hold, drag, bank slugs off skillets. Cinematic western ricochet shooter.`
-- **Full description:**
+Character counts are checked against Play's limits.
+
+- **App name (26/30):** `Bjango: The Gritty Western`
+- **Short description (76/80):**
+  `Hold to slow time. Bank bullets off skillets. Outdraw 30 streets of outlaws.`
+- **Full description (2165/4000):**
 
 ```
-Bjango is a cinematic one-thumb western. Hold the glass. Time crawls. Drag the gold line onto a skillet, barrel, or tin sign, then let go and watch the slug bank.
+Hold the glass and time crawls. A gold line shows exactly where your bullet will go – every bounce included. Drag it onto a skillet, a barrel hoop or a tin sign, let go, and watch the slug bank into the man hiding behind cover.
+
+Bjango is a one-thumb western shooter built around slow, satisfying trick shots. No twitch aiming. Just you, six rounds and a street full of men reaching for their irons.
 
 RED DUST COUNTY
-• Nine stand-offs across four chapters — street, saloon, canyon, depot, gallows
-• Bounce shots off pans, barrels, and signs to reach men behind cover
-• Headshots, collaterals, and deadeye bonuses
-• Three hearts. Six in the cylinder. Tap to reload.
+• 30 streets across 7 chapters – dusty main streets, a lamplit saloon, red-rock canyons, the rail depot and the gallows
+• Metal bounces the shot. Wood stops it. Bank around crates and fences to reach the men behind them
+• Outlaws duck behind cover, pace the boardwalks and draw faster the further you ride
+• Marshals take two hits – or one in the hat
+• Line up two men and put one bullet through both
+• Up to three stars a street. Clear it with a single bullet for all three
+
+DAILY SHOWDOWN
+• A new street every day, the same for everyone
+• Win each day to keep your streak going
 
 BOUNTY HUNT
-• Endless arcade waves, streak multipliers, and a high bounty saved on the phone
+• Endless waves of outlaws and a growing cash bounty
+• Bank shots, headshots and doubles push your multiplier up to 4×
+• Every third wave has a twist: Quick Draw, Iron Men or Pan Alley
+• Your best bounty is kept on your phone
 
-GUNSMITH
-• Blued, silver, gold, or charred revolver finish
+WANTED POSTERS AND THE GUNSMITH
+• 16 Wanted Posters to claim, from First Draw to Legend of Red Dust
+• Earn eight more revolver finishes with your stars – Silver, Gold, Charred, Jade, Devil Red, Legend and more
+
+MADE TO FEEL GOOD
+• Bullet-time slow-mo and a kill-cam on the last man standing
+• Ricochets you can feel, with haptics on every bounce and hit
+• Narrator and outlaw voices, recorded gunshots and the ping of lead off cast iron
+• Shoot a passing tumbleweed for a little extra
+• A hands-on tutorial teaches the draw and the bank shot in two streets
 
 HOW TO PLAY
 Hold. Drag until it says WILL HIT or BOUNCE WILL HIT. Let go.
-Metal bounces. Wood stops the shot. If a man ducks, bank around the cover.
+Tap the cylinder to reload.
 
-FREE TO PLAY
-• No account. No in-app purchases. No real-money gambling.
-• Campaign score, stars, and bounty high score stay on this device.
+NO ACCOUNT, NO PURCHASES
+• No sign-up and no in-app purchases
+• Your stars, streak and bounty stay on your phone
+• A banner on the title and menus, and an occasional full-screen ad between streets – never while you are aiming
 
-ADS
-• A banner on the title and menus — never over the gun during a stand-off
-• An occasional full-screen ad between streets
-
-A Red Dust picture. Portrait phone. One thumb.
+A Red Dust picture. Portrait. One thumb.
 ```
 
 - **Graphics:**
   - Hi-res icon: `PlayStore_Assets/App_Icon_512x512.png` (512×512, must match the launcher skillet)
-  - Feature graphic: `PlayStore_Assets/Feature_Graphic_1024x500.png`
-  - Phone screenshots (1080×1920, 9:16) — upload these, in order:
-    1. `PlayStore_Assets/Screenshots/1_title.png`
-    2. `PlayStore_Assets/Screenshots/3_how_to_play.png`
-    3. `PlayStore_Assets/Screenshots/4_high_draw.png`
-    4. `PlayStore_Assets/Screenshots/5_scene_clear.png`
-    5. `PlayStore_Assets/Screenshots/6_hanging_pan.png`
-    6. `PlayStore_Assets/Screenshots/7_bounty_hunt.png`
-    Skip `2_menu.png` and `8_privacy.png` unless you want extras. Do not use the old `assets/ui/screenshot-phone.jpg` (it still says The Gritty Western, not Bjango).
+  - Feature graphic: `PlayStore_Assets/Feature_Graphic_1024x500.png` (1024×500, 24-bit PNG, no alpha). Rebuild with `python3 scripts/make_feature_graphic.py` from `tools/feature-graphic.html`.
+  - Phone screenshots (1080×1920, 9:16), captured from real play by `tools/store_screenshots.py`. Upload these, in order:
+    1. `PlayStore_Assets/Screenshots-1.3.0/1_title.png`
+    2. `PlayStore_Assets/Screenshots-1.3.0/2_bank_shot.png`
+    3. `PlayStore_Assets/Screenshots-1.3.0/3_collateral.png`
+    4. `PlayStore_Assets/Screenshots-1.3.0/4_scene_clear.png`
+    5. `PlayStore_Assets/Screenshots-1.3.0/5_bounty_hunt.png`
+    6. `PlayStore_Assets/Screenshots-1.3.0/6_daily_showdown.png`
+    7. `PlayStore_Assets/Screenshots-1.3.0/7_streets.png`
+    8. `PlayStore_Assets/Screenshots-1.3.0/8_wanted_posters.png`
+    Remove the older sets (`Screenshots/`, `Screenshots-1.2.0/`) from the listing — they show the old HUD. Do not use `assets/ui/screenshot-phone.jpg` (it still says The Gritty Western, not Bjango).
 - **Category:** Game → **Action** (second tag **Arcade** if asked). Not Casual-only. Not Kids.
 - **Tags:** Western, Action, Arcade, Shooter, Single player
 - **Contact:** `justsmk@gmail.com` · `https://shane-morris.netlify.app/privacy`
@@ -123,13 +143,17 @@ All countries is fine. English listing is en-GB; you can add en-US copy later if
 ## 4. Release
 
 - Production (or closed testing first if you prefer)
-- Release name: `1.0.0 (1)`
-- Release notes (en-GB):
+- Release name: `1.3.0 (4)`
+- Release notes (en-GB, 469/500):
 
 ```
-First release of Bjango — The Gritty Western.
-
-Hold, drag, and bank slugs off skillets across nine dusty streets. Campaign stars, Bounty Hunt, and gun finishes save on your phone.
+A big polish and a round of fixes:
+• No more black bars on tall phones – more sky, and the gun sits in your hand
+• New steel-and-brass cylinder, pocket-watch draw timers and glowing hearts
+• A banked bullet can now pass through two men, and the kill-cam plays on the final shot
+• Marshals take two hits (or one in the hat), as the hints always said
+• Daily Showdown and Bounty Hunt show their own streets
+• Fixed slow-mo getting stuck, extra taps costing stars and more
 ```
 
-Upload **one** AAB: `uk.co.mozzer.bjango` versionCode **1**. Do not upload another while this review is pending.
+Upload **one** AAB: `uk.co.mozzer.bjango` versionCode **4**. Run `npm run bundle:aab` first so the bundle carries this version and today's game files.

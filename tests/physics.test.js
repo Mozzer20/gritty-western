@@ -109,6 +109,57 @@ function almost(a, b, eps, msg) {
   }
 }
 
+// 7b. Two men lined up on the ricochet: one banked slug drops both. Flesh is
+// absorbent, so this only works if pierce is tested before absorb.
+{
+  const bodies = [
+    { id: "sign", kind: "segment", ax: 600, ay: 600, bx: 600, by: 800, r: 4, material: "metal" },
+    { id: "one", kind: "circle", x: 503.5, y: 530.7, r: 30, material: "flesh", tag: "body" },
+    { id: "two", kind: "circle", x: 411, y: 353.4, r: 30, material: "flesh", tag: "body" },
+  ];
+  const origin = { x: 360, y: 1160 };
+  const banked = P.traceShot(origin, { x: 240, y: -460 }, bodies, { speed: 1800, radius: 4, chain: true, maxBounces: 5 });
+  const ids = banked.path.filter((p) => p.hit && p.hit.body && p.hit.body.tag).map((p) => p.hit.body.id);
+  assert(banked.bounces >= 1, "lined-up shot banked off the sign");
+  assert(ids.join(",") === "one,two", "banked slug passes through the first man into the second (got " + ids.join(",") + ")");
+  const straight = P.traceShot(origin, { x: 503.5 - origin.x, y: 530.7 - origin.y }, bodies, { speed: 1800, radius: 4, chain: true, maxBounces: 5 });
+  assert(straight.end && straight.end.body && straight.end.body.id === "one", "an unbanked shot still stops in the first man");
+}
+
+// 8. Saloon Glass promises "one bullet can hit both men": there must be such a shot.
+{
+  const levelsSrc = fs.readFileSync(path.join(__dirname, "..", "js", "levels.js"), "utf8");
+  vm.runInContext(levelsSrc, ctx);
+  const L = ctx.GW.LEVELS.find((l) => l.id === "saloon-glass");
+  const bodies = [
+    { id: "left", kind: "segment", ax: 6, ay: 18, bx: 6, by: 1266, r: 6, material: "adobe" },
+    { id: "right", kind: "segment", ax: 714, ay: 18, bx: 714, by: 1266, r: 6, material: "adobe" },
+    { id: "sky", kind: "segment", ax: 6, ay: 14, bx: 714, by: 14, r: 6, material: "adobe" },
+    { id: "floor", kind: "segment", ax: 8, ay: 1266, bx: 712, by: 1266, r: 6, material: "dirt" },
+  ];
+  L.entities.forEach((e, i) => {
+    const s = e.s || 1;
+    if (e.type === "enemy") {
+      const sc = 0.92 * s;
+      bodies.push({ id: "e" + i, kind: "circle", x: e.x, y: e.y - 90 * sc, r: 44 * sc, material: "flesh", tag: "body" });
+      bodies.push({ id: "e" + i + "-head", kind: "circle", x: e.x, y: e.y - 158 * sc, r: 22 * sc, material: "flesh", tag: "head" });
+    } else if (e.type === "pan") bodies.push({ id: "p" + i, kind: "circle", x: e.x, y: e.y, r: 44 * s, material: "pan" });
+    else if (e.type === "sign") {
+      const h = e.h || 200;
+      bodies.push({ id: "s" + i, kind: "segment", ax: e.x, ay: e.y - h / 2, bx: e.x, by: e.y + h / 2, r: 5, material: "metal" });
+    } else if (e.type === "fence") bodies.push({ id: "f" + i, kind: "segment", ax: e.x0, ay: e.y, bx: e.x1, by: e.y, r: e.r || 10, material: "wood" });
+  });
+  let doubles = 0;
+  for (let x = 30; x <= 690; x += 4) {
+    for (let y = 300; y <= 1000; y += 4) {
+      const tr = P.traceShot({ x: 360, y: 1172 }, { x: x - 360, y: Math.min(-160, y - 1172) }, bodies, { speed: 1760, radius: 4, maxBounces: 6, muzzle: 22, chain: true });
+      const men = new Set(tr.path.filter((p) => p.hit && p.hit.material === "flesh").map((p) => p.hit.body.id.replace("-head", "")));
+      if (men.size >= 2) doubles += 1;
+    }
+  }
+  assert(doubles > 0, "Saloon Glass has a bank shot through both men (found " + doubles + ")");
+}
+
 if (failed) {
   console.error(`\n${failed} failed`);
   process.exit(1);

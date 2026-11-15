@@ -1,0 +1,178 @@
+<!doctype html>
+<!--
+  Google Play feature graphic (1024x500). Rendered to PNG by
+  scripts/make_feature_graphic.py. Uses the game's own art and fonts.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Bjango feature graphic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Rye&family=Special+Elite&display=block" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1024px; height: 500px; overflow: hidden; background: #100a07; }
+
+  #art { position: relative; width: 1024px; height: 500px; overflow: hidden; }
+
+  /* Street at sunset, sun pushed right so the outlaw stands against it */
+  .street {
+    position: absolute;
+    left: -60px;
+    top: -900px;
+    width: 1460px;
+    height: 2596px;
+    background: url(../assets/art/bg-street.jpg) center / cover no-repeat;
+    filter: blur(1.4px) saturate(1.12) contrast(1.05);
+  }
+
+  .grade {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 360px 220px at 700px 205px, rgba(255, 170, 80, 0.38), transparent 70%),
+      linear-gradient(90deg, rgba(12, 7, 4, 0.94) 0%, rgba(12, 7, 4, 0.82) 30%, rgba(12, 7, 4, 0.25) 56%, rgba(12, 7, 4, 0) 70%),
+      linear-gradient(180deg, rgba(12, 7, 4, 0.35) 0%, transparent 22%, transparent 70%, rgba(12, 7, 4, 0.75) 100%);
+  }
+
+  .haze {
+    position: absolute; left: 380px; right: -40px; top: 250px; height: 140px;
+    background: radial-gradient(ellipse at 55% 50%, rgba(232, 190, 130, 0.32), transparent 70%);
+    filter: blur(6px);
+  }
+
+  /* Hanging skillet */
+  .rope { position: absolute; left: 950px; top: -6px; width: 2px; height: 108px; background: linear-gradient(#1c120a, #3e2a1a); }
+  .pan {
+    position: absolute; left: 830px; top: 98px; width: 150px;
+    transform: rotate(-4deg); transform-origin: 81% 2%;
+    filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55)) brightness(1.08) contrast(1.05);
+  }
+
+  /* Outlaw backlit by the sun */
+  /* backlit: his shadow runs down the street toward us */
+  .cast {
+    position: absolute; left: 600px; top: 436px; width: 220px; height: 70px;
+    background: linear-gradient(180deg, rgba(8, 4, 2, 0.7), rgba(8, 4, 2, 0));
+    clip-path: polygon(38% 0, 62% 0, 92% 100%, 8% 100%);
+    filter: blur(3px);
+  }
+  .shadow {
+    position: absolute; left: 606px; top: 428px; width: 200px; height: 30px;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.8), transparent 70%);
+  }
+  .dust {
+    position: absolute; left: 560px; top: 400px; width: 300px; height: 80px;
+    background: radial-gradient(ellipse at center, rgba(226, 176, 116, 0.32), transparent 70%);
+    filter: blur(4px);
+  }
+  .outlaw {
+    position: absolute; left: 642px; top: 152px; height: 300px;
+    filter: brightness(0.9) contrast(1.08)
+      drop-shadow(0 0 1px rgba(255, 205, 130, 0.95))
+      drop-shadow(0 0 14px rgba(255, 140, 50, 0.55));
+  }
+
+  /* The shot: gun (off frame) -> skillet -> outlaw */
+  svg.shot { position: absolute; inset: 0; width: 1024px; height: 500px; overflow: visible; }
+
+  /* Logo block */
+  .logo {
+    position: absolute; left: 44px; top: 0; bottom: 0; width: 470px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .kicker {
+    display: flex; align-items: center; gap: 14px;
+    font: 15px "Special Elite", monospace; letter-spacing: 0.46em; color: #e8c36a;
+    margin: 0 0 14px 0.46em;
+    text-shadow: 0 1px 8px #000;
+  }
+  .kicker::before, .kicker::after { content: ""; width: 44px; height: 1px; background: linear-gradient(90deg, transparent, rgba(232, 195, 106, 0.85)); }
+  .kicker::after { transform: scaleX(-1); }
+  .brand {
+    font: 100px/0.92 Rye, serif;
+    background: linear-gradient(180deg, #fff0bf 0%, #f0cf78 38%, #c9952f 62%, #f2d890 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 0 #3a1408) drop-shadow(0 16px 28px rgba(0, 0, 0, 0.75));
+  }
+  .sub {
+    margin-top: 16px;
+    font: 700 22px Cinzel, serif; letter-spacing: 0.26em; color: #f1e2c4;
+    margin-left: 0.26em; white-space: nowrap;
+    text-shadow: 0 2px 10px #000;
+  }
+  .tag {
+    margin-top: 14px;
+    font: 16px "Special Elite", monospace; letter-spacing: 0.32em; color: #c9a877;
+    margin-left: 0.32em;
+    text-shadow: 0 1px 8px #000;
+  }
+
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 80% 90% at 55% 50%, transparent 60%, rgba(0, 0, 0, 0.45) 100%);
+  }
+  .grain { position: absolute; inset: 0; opacity: 0.09; mix-blend-mode: overlay; }
+</style>
+</head>
+<body>
+<div id="art">
+  <div class="street"></div>
+  <div class="haze"></div>
+  <div class="grade"></div>
+
+  <div class="rope"></div>
+  <img class="pan" src="../assets/props/pan.webp" alt="" />
+  <div class="cast"></div>
+  <div class="shadow"></div>
+  <img class="outlaw" src="../assets/characters/sharp-draw.webp" alt="" />
+  <div class="dust"></div>
+
+  <svg class="shot" viewBox="0 0 1024 500" aria-hidden="true">
+    <defs>
+      <radialGradient id="spark" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#fffbe6" stop-opacity="1" />
+        <stop offset="0.35" stop-color="#ffd877" stop-opacity="0.8" />
+        <stop offset="1" stop-color="#ff9a3a" stop-opacity="0" />
+      </radialGradient>
+      <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#fff2c4" stop-opacity="0" />
+        <stop offset="1" stop-color="#fff6d8" stop-opacity="0.95" />
+      </linearGradient>
+    </defs>
+    <!-- glow -->
+    <path d="M 812 520 L 916 162" stroke="rgba(255,196,70,0.42)" stroke-width="12" stroke-linecap="round" fill="none" />
+    <path d="M 916 162 L 712 300" stroke="rgba(255,230,140,0.55)" stroke-width="13" stroke-linecap="round" fill="none" />
+    <!-- dotted core -->
+    <path d="M 812 520 L 916 162" stroke="#ffe7a0" stroke-width="4" stroke-dasharray="11 8" stroke-linecap="round" fill="none" />
+    <path d="M 916 162 L 712 300" stroke="#fff4b0" stroke-width="4" stroke-dasharray="11 8" stroke-linecap="round" fill="none" />
+    <!-- bounce spark on the skillet -->
+    <circle cx="916" cy="162" r="38" fill="url(#spark)" />
+    <circle cx="916" cy="162" r="6" fill="#fff4c8" />
+    <circle cx="916" cy="162" r="12" fill="none" stroke="rgba(255,220,120,0.95)" stroke-width="2.4" />
+    <!-- lock ring on his chest -->
+    <circle cx="712" cy="300" r="34" fill="none" stroke="rgba(255,226,140,0.95)" stroke-width="2.6" />
+    <!-- the slug, mid-flight on the bounce -->
+    <g transform="translate(783.4 251.7) rotate(145.9)">
+      <rect x="-86" y="-2.6" width="86" height="5.2" rx="2.6" fill="url(#trail)" />
+      <circle cx="0" cy="0" r="16" fill="url(#spark)" />
+      <circle cx="0" cy="0" r="5" fill="#fffbe9" />
+    </g>
+  </svg>
+
+  <div class="logo">
+    <p class="kicker">A RED DUST PICTURE</p>
+    <h1 class="brand">BJANGO</h1>
+    <p class="sub">THE GRITTY WESTERN</p>
+    <p class="tag">HOLD · DRAG · LET GO</p>
+  </div>
+
+  <div class="vignette"></div>
+  <svg class="grain" viewBox="0 0 1024 500" preserveAspectRatio="none" aria-hidden="true">
+    <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" /></filter>
+    <rect width="1024" height="500" filter="url(#noise)" />
+  </svg>
+</div>
+</body>
+</html>

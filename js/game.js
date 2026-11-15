@@ -735,6 +735,25 @@
     });
   }
 
+  /** Lowest point of the score bar / street name / bounty purse, in stage units. */
+  function hudLineWorld() {
+    return (state.mode === "bounty" ? 104 : 80) / (state.view.cssScale || 1) - (state.view.padTop || 0);
+  }
+
+  /** Every man a trace will strike, in order. A banked slug can pass through one into the next. */
+  function menOnPath(trace) {
+    const out = [];
+    if (!trace || !trace.path) return out;
+    for (const p of trace.path) {
+      const h = p.hit;
+      if (!h || !h.body || !h.body.ent || h.body.ent.type !== "enemy") continue;
+      const mat = P.MATERIALS[h.material];
+      if (!mat || !mat.lethal || out.some((m) => m.ent === h.body.ent)) continue;
+      out.push({ ent: h.body.ent, tag: h.body.tag, bounce: p.bounce || 0 });
+    }
+    return out;
+  }
+
   function burst(x, y, color, n, speed) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -862,18 +881,14 @@
 
     // Check if this shot eliminates the last living enemy for Cinematic Kill-Cam
     const enemies = living();
-    const isLastLethal =
-      enemies.length === 1 &&
-      trace.end &&
-      trace.end.hit &&
-      trace.end.hit.body &&
-      trace.end.hit.body.ent === enemies[0] &&
-      (trace.end.hit.body.tag === "head" || (enemies[0].hp || 1) <= 1);
+    const struck = menOnPath(trace);
+    const drops = (e) => struck.some((m) => m.ent === e && (m.tag === "head" || (e.hp || 1) <= 1));
+    const isLastLethal = enemies.length > 0 && enemies.every(drops);
 
     if (isLastLethal) {
       state.killCam = {
         active: true,
-        target: enemies[0],
+        target: struck[struck.length - 1].ent,
         zoom: 1.52,
         t: 0,
       };
@@ -1970,17 +1985,18 @@
       }
       const tr = currentTrace();
       state.preview = tr;
+      const men = menOnPath(tr);
       const endTag = tr.end && tr.end.body && tr.end.body.tag;
-      const lethal = endTag === "body" || endTag === "head";
-      const weed = endTag === "tumbleweed";
-      const lockId = lethal && tr.end.body.ent ? tr.end.body.ent.id : null;
+      const lethal = men.length > 0;
+      const weed = !lethal && endTag === "tumbleweed";
+      const lockId = lethal ? men.map((m) => m.ent.id).join("+") : null;
       if (lockId && lockId !== state.lockId) {
         audio.lock();
         rumblePat([3, 14, 5]);
       }
       state.lockId = lockId;
       const cue = $("hold-cue");
-      cue.textContent = lethal ? (tr.bounces ? "BOUNCE WILL HIT" : "WILL HIT") : weed ? "TUMBLEWEED" : "DRAG TO AIM";
+      cue.textContent = lethal ? hitLabel(men) : weed ? "TUMBLEWEED" : "DRAG TO AIM";
       cue.style.opacity = "0.9";
       audio.startHeart();
       audio.setHeartLock(!!lockId);
@@ -2081,6 +2097,11 @@
     audio.tickTheme(dt, state.mode === "title");
     const openStreet = (state.mode === "fight" || state.mode === "bounty") && state.bg !== "saloon";
     audio.tickGust(dt, openStreet);
+  }
+
+  function hitLabel(men) {
+    const base = men[0].bounce ? "BOUNCE WILL HIT" : "WILL HIT";
+    return men.length > 1 ? base + " ×" + men.length : base;
   }
 
   function startReload() {
@@ -2639,7 +2660,16 @@
   function drawPath(c) {
     const trace = state.preview || currentTrace();
     if (!trace || !trace.path) return;
-    const all = densify(trace.path, 12);
+    // Past the last man it strikes, a banked slug only buries itself in a
+    // wall: end the line on him, as it always did before slugs could pass through.
+    let path = trace.path;
+    let lastMan = -1;
+    path.forEach((p, i) => {
+      const h = p.hit;
+      if (h && h.body && h.body.ent && h.body.ent.type === "enemy" && (P.MATERIALS[h.material] || {}).lethal) lastMan = i;
+    });
+    if (lastMan > 0) path = path.slice(0, lastMan + 1);
+    const all = densify(path, 12);
     if (all.length < 2) return;
     const segs = splitByBounce(all);
     for (let i = 0; i < segs.length; i++) strokePoly(c, segs[i], 1, i > 0);
@@ -2776,18 +2806,24 @@
       strokePoly(sctx, state.ghost.pts, 0.35 * Math.max(0, state.ghost.t));
     }
     if (state.aiming) {
-      if (state.preview && state.preview.end && state.preview.end.body) {
-        const b = state.preview.end.body;
-        if (b.ent && b.ent.type === "enemy" && !b.ent.dead && !b.ent.hidden) {
-          sctx.save();
-          sctx.strokeStyle = "rgba(255, 226, 140, 0.95)";
-          sctx.lineWidth = 2.4;
+      const men = menOnPath(state.preview).filter((m) => !m.ent.dead && !m.ent.hidden);
+      if (men.length) {
+        sctx.save();
+        sctx.strokeStyle = "rgba(255, 226, 140, 0.95)";
+        sctx.lineWidth = 2.4;
+        for (const m of men) {
           sctx.beginPath();
-          sctx.arc(b.ent.x, b.ent.y - 110 * (b.ent.s || 1), 52, 0, Math.PI * 2);
+          sctx.arc(m.ent.x, m.ent.y - 110 * (m.ent.s || 1), 52, 0, Math.PI * 2);
           sctx.stroke();
-          sctx.restore();
-          sightLabel(b.ent.x, b.ent.y - 110 * (b.ent.s || 1) - 74, state.preview.bounces ? "BOUNCE WILL HIT" : "WILL HIT", 1);
-        } else if (b.tag === "tumbleweed" || b.tumbleweed) {
+        }
+        sctx.restore();
+        const top = men.reduce((a, m) => (m.ent.y - 110 * (m.ent.s || 1) < a.ent.y - 110 * (a.ent.s || 1) ? m : a), men[0]);
+        let ly = top.ent.y - 110 * (top.ent.s || 1) - 74;
+        if (ly - 22 < hudLineWorld()) ly = Math.max(...men.map((m) => m.ent.y)) + 44; // short screen: write it under their boots
+        sightLabel(top.ent.x, ly, hitLabel(men), 1);
+      } else if (state.preview && state.preview.end && state.preview.end.body) {
+        const b = state.preview.end.body;
+        if (b.tag === "tumbleweed" || b.tumbleweed) {
           const tw = b.tumbleweed;
           sctx.save();
           sctx.strokeStyle = "rgba(255, 215, 110, 0.95)";
@@ -2935,8 +2971,7 @@
     if (state.mode !== "fight" && state.mode !== "bounty") return;
     if (state.bullet) return;
     const now = performance.now();
-    // Lowest point of the score bar / street name / bounty purse, in stage units.
-    const hudLine = (state.mode === "bounty" ? 104 : 80) / (state.view.cssScale || 1) - (state.view.padTop || 0);
+    const hudLine = hudLineWorld();
     for (const e of living()) {
       if (e.hidden) continue;
       const t = Math.max(0, Math.min(1, e.drawT / e.drawMax));

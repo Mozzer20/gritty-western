@@ -263,7 +263,9 @@
           bounces >= 1 &&
           bestBody.tag !== "head";
 
-        if (mat.absorb || (mat.lethal && !pierce) || bounces >= maxBounces) {
+        // Flesh is absorbent, so test pierce first: after a bank, a body shot
+        // carries on into whoever stands behind (one bullet, two men).
+        if ((mat.absorb && !pierce) || (mat.lethal && !pierce) || bounces >= maxBounces) {
           return { path, end: hitInfo, bounces, absorbed: true };
         }
 

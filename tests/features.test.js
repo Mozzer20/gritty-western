@@ -229,7 +229,14 @@ describe("11. Scene and shot bug fixes", () => {
     assert.match(gameSrc, /function needsCoach\(\) \{\s*if \(state\.mode === "bounty"\) return false;/);
   });
 
-  it("only promises WILL HIT for a man, not a tumbleweed", () => {
-    assert.match(gameSrc, /const lethal = endTag === "body" \|\| endTag === "head";/);
+  it("only promises WILL HIT for a man, not a tumbleweed, and counts every man a banked slug passes through", () => {
+    assert.match(gameSrc, /function menOnPath\(trace\)/);
+    assert.match(gameSrc, /const lethal = men\.length > 0;/);
+    assert.match(gameSrc, /const weed = !lethal && endTag === "tumbleweed";/);
+  });
+
+  it("runs the kill-cam when a shot will drop everyone left (it read trace.end.hit, which never exists)", () => {
+    assert.doesNotMatch(gameSrc, /trace\.end\.hit/);
+    assert.match(gameSrc, /const isLastLethal = enemies\.length > 0 && enemies\.every\(drops\);/);
   });
 });
